@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>記念品イラスト かんたん生成</title>
+  <style>
+    body{font-family:sans-serif; max-width:720px; margin:2rem auto; padding:1rem;}
+    input,button{padding:.5rem; font-size:1rem;}
+    img{max-width:100%; margin-top:1rem; border:1px solid #ccc;}
+  </style>
+</head>
+<body>
+  <h1>🎨 記念品イラスト生成</h1>
+  <p>プロンプトを入力して「生成」ボタンを押してください。</p>
+  <input id="prompt" size="50" placeholder="例: 王冠をかぶった白いチワワの誕生日イラスト">
+  <button onclick="generate()">生成</button>
+  <div id="result"></div>
+
+<script>
+async function generate(){
+  const prompt=document.getElementById("prompt").value;
+  document.getElementById("result").innerHTML="⏳ 生成中...";
+  const r=await fetch("/api/generate",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({prompt})
+  });
+  const j=await r.json();
+  if(j.image){
+    document.getElementById("result").innerHTML=`<img src="${j.image}">`;
+  }else{
+    document.getElementById("result").innerText="エラー: "+(j.error||"不明");
+  }
+}
+</script>
+</body>
+</html>
