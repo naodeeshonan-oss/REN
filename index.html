@@ -18,18 +18,26 @@
   <div id="result"></div>
 
 <script>
-async function generate(){
-  const prompt=document.getElementById("prompt").value;
-  document.getElementById("result").innerHTML="⏳ 生成中...";
-  const r=await fetch("/api/generate",{method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({prompt})
-  });
-  const j=await r.json();
-  if(j.image){
-    document.getElementById("result").innerHTML=`<img src="${j.image}">`;
-  }else{
-    document.getElementById("result").innerText="エラー: "+(j.error||"不明");
+async function generate() {
+  const prompt = document.getElementById("prompt").value;
+  const resultDiv = document.getElementById("result");
+  resultDiv.innerHTML = "⏳ 生成中...";
+
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      resultDiv.innerHTML = "❌ エラー: " + data.error;
+    } else {
+      resultDiv.innerHTML = `<img src="${data.url}" style="max-width:100%;">`;
+    }
+  } catch (err) {
+    resultDiv.innerHTML = "⚠️ 通信エラー: " + err.message;
   }
 }
 </script>
