@@ -1,22 +1,19 @@
-// /api/generate.js
-export const config = { api: { bodyParser: false } };
+// /api/generate.js  — JSON方式（FormDataは使いません）
 
 function cleanseKey(raw) {
   return (raw||"").replace(/^export\s+/i,"").replace(/^OPENAI_API_KEY\s*=\s*/i,"").trim();
 }
 
 function buildPrompt(basePrompt, options, isEdit){
-  const lines = [];
-  lines.push(basePrompt);
+  const lines = [basePrompt];
 
-  const p = options?.preset || "";
   const presets = {
     "anime-soft":"gentle anime style, soft lines, clean colors, subtle cel shading",
     "watercolor":"delicate watercolor style, soft edges, paper texture, light pastel tones",
     "pixar-soft":"pixar-like friendly vibe, soft lighting, round shapes, but subtle",
     "ghibli-soft":"ghibli-inspired warm tone, hand-painted feeling, but subtle"
   };
-  if (p && presets[p]) lines.push(presets[p]);
+  if (options?.preset && presets[options.preset]) lines.push(presets[options.preset]);
 
   if (options?.lite)  lines.push("enhance aesthetics only by ~20%, keep it natural");
   if (options?.smile) lines.push("make expression a natural slight smile, not exaggerated");
@@ -25,30 +22,22 @@ function buildPrompt(basePrompt, options, isEdit){
   if (isEdit && options?.lockFace !== false) {
     lines.push(
       "STRICT: preserve the subject's identity and likeness (>95%).",
-      "Do not change face shape, age, gender, skin tone, eye shape, nose, or hairstyle length.",
+      "Do not change face shape, age, gender, skin tone, or hairstyle length.",
       "No gender-swap, no age-shift, no different person."
     );
-  }
-
-  if (options?.strongStyle) {
-    lines.push("You may push style slightly stronger, but still keep identity recognizable.");
   }
 
   return lines.join("\n");
 }
 
-export default async function handler(req, res) {
+export default async function handler(req, res){
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST だけ受け付けます" });
   }
 
-  try {
-    // Node18+ では Request をそのまま扱える
-    const form = await req.formData();
-    const prompt = form.get("prompt") || "";
-    const options = JSON.parse(form.get("options") || "{}");
-    const file = form.get("image"); // File または null
-
+  try{
+    // ここは JSON を想定（フロントが base64 で送ってくる）
+    const { prompt, options = {}, image } = req.body || {};
     if (!prompt) return res.status(400).json({ error: "prompt を入れてください" });
 
     const apiKey = cleanseKey(process.env.OPENAI_API_KEY);
@@ -56,15 +45,18 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "OPENAI_API_KEY が未設定または不正です" });
     }
 
-    const isEdit = !!file;
-
+    const isEdit = !!image?.b64;
     const finalPrompt = buildPrompt(prompt, options, isEdit);
 
     if (isEdit) {
+      // base64 → Blob
+      const buf = Buffer.from(image.b64, "base64");
+      const blob = new Blob([buf], { type: image.mime || "image/jpeg" });
+
       const formData = new FormData();
       formData.append("model","gpt-image-1");
       formData.append("prompt", finalPrompt);
-      formData.append("image[]", file, file.name || "image.jpg");
+      formData.append("image[]", blob, image.name || "upload.jpg");
       formData.append("size","1024x1024");
       formData.append("quality","high");
 
@@ -77,16 +69,14 @@ export default async function handler(req, res) {
       if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "OpenAI 編集APIエラー" });
 
       const item = data?.data?.[0] || {};
-      const image = item.url || (item.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
-      if (!image) return res.status(500).json({ error: "画像データがありません" });
-      return res.status(200).json({ image });
+      const imageUrl = item.url || (item.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
+      if (!imageUrl) return res.status(500).json({ error: "画像データがありません" });
+
+      return res.status(200).json({ image: imageUrl });
     } else {
       const r = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type":"application/json" },
         body: JSON.stringify({
           model: "gpt-image-1",
           prompt: finalPrompt,
@@ -98,11 +88,12 @@ export default async function handler(req, res) {
       if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "OpenAI 生成APIエラー" });
 
       const item = data?.data?.[0] || {};
-      const image = item.url || (item.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
-      if (!image) return res.status(500).json({ error: "画像データがありません" });
-      return res.status(200).json({ image });
+      const imageUrl = item.url || (item.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
+      if (!imageUrl) return res.status(500).json({ error: "画像データがありません" });
+
+      return res.status(200).json({ image: imageUrl });
     }
-  } catch (err) {
+  }catch(err){
     return res.status(500).json({ error: String(err?.message || err) });
   }
 }
