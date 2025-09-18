@@ -6,40 +6,52 @@
   <title>記念品イラスト かんたん生成</title>
   <style>
     body{font-family:sans-serif; max-width:720px; margin:2rem auto; padding:1rem;}
-    input,button{padding:.5rem; font-size:1rem;}
+    input,button{padding:.6rem; font-size:1rem;}
+    button{cursor:pointer;}
     img{max-width:100%; margin-top:1rem; border:1px solid #ccc;}
+    .error{color:#c00; margin-top:.5rem;}
   </style>
 </head>
 <body>
   <h1>🎨 記念品イラスト生成</h1>
   <p>プロンプトを入力して「生成」ボタンを押してください。</p>
   <input id="prompt" size="50" placeholder="例: 王冠をかぶった白いチワワの誕生日イラスト">
-  <button onclick="generate()">生成</button>
+  <button id="btn">生成</button>
   <div id="result"></div>
+  <div id="err" class="error"></div>
 
 <script>
-async function generate() {
-  const prompt = document.getElementById("prompt").value;
-  const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "⏳ 生成中...";
+async function generate(){
+  const btn = document.getElementById("btn");
+  const prompt = document.getElementById("prompt").value.trim();
+  const result = document.getElementById("result");
+  const err = document.getElementById("err");
 
-  try {
-    const response = await fetch("/api/generate", {
+  err.textContent = "";
+  result.innerHTML = "";
+  if(!prompt){ err.textContent = "プロンプトを入力してください"; return; }
+
+  btn.disabled = true; btn.textContent = "生成中…";
+  try{
+    const r = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt })
     });
-
-    const data = await response.json();
-    if (data.error) {
-      resultDiv.innerHTML = "❌ エラー: " + data.error;
-    } else {
-      resultDiv.innerHTML = `<img src="${data.url}" style="max-width:100%;">`;
+    const j = await r.json();
+    if(!r.ok){
+      err.textContent = "エラー: " + (j.error || "不明なエラー");
+      return;
     }
-  } catch (err) {
-    resultDiv.innerHTML = "⚠️ 通信エラー: " + err.message;
+    result.innerHTML = `<img src="${j.image}" alt="生成画像">`;
+  }catch(e){
+    err.textContent = "通信エラー: " + e.message;
+  }finally{
+    btn.disabled = false; btn.textContent = "生成";
   }
 }
+
+document.getElementById("btn").addEventListener("click", generate);
 </script>
 </body>
 </html>
