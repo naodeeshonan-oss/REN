@@ -10,22 +10,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "prompt を入れてください" });
     }
 
-    // --- ここが重要：環境変数の余計な文字を除去 ---
-    let apiKeyRaw = process.env.OPENAI_API_KEY || "";
-    // よくある混入パターンを除去（先頭/末尾の空白・改行、"export "、"OPENAI_API_KEY="）
-    let apiKey = apiKeyRaw
-      .replace(/^export\s+/i, "")                // 先頭の "export "
-      .replace(/^OPENAI_API_KEY\s*=\s*/i, "")    // "OPENAI_API_KEY="
-      .trim();                                   // 前後の空白/改行
+    // 貼り付け時のゴミ掃除（export や OPENAI_API_KEY= などを除去）
+    let apiKey = (process.env.OPENAI_API_KEY || "")
+      .replace(/^export\s+/i, "")
+      .replace(/^OPENAI_API_KEY\s*=\s*/i, "")
+      .trim();
 
     if (!apiKey || !apiKey.startsWith("sk-")) {
-      return res.status(500).json({
-        error: `OPENAI_API_KEY が不正です（先頭: "${(apiKey || "").slice(0,6)}..."）`
-      });
+      return res.status(500).json({ error: `OPENAI_API_KEY が不正です（先頭: "${(apiKey || "").slice(0,6)}..."）` });
     }
-    // ---------------------------------------------
 
-    // 画像生成（base64で受け取る）
+    // 画像生成：response_format は送らない（今は未対応のため）
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -36,8 +31,7 @@ export default async function handler(req, res) {
         model: "gpt-image-1",
         prompt,
         size: "1024x1024",
-        quality: "high",
-        response_format: "b64_json"
+        quality: "high"
       })
     });
 
@@ -49,13 +43,20 @@ export default async function handler(req, res) {
       });
     }
 
-    const b64 = data?.data?.[0]?.b64_json;
-    if (!b64) {
+    const item = data?.data?.[0] || {};
+    let image = null;
+
+    if (item.b64_json) {
+      image = `data:image/png;base64,${item.b64_json}`;
+    } else if (item.url) {
+      image = item.url;
+    }
+
+    if (!image) {
       return res.status(500).json({ error: "画像データがありません" });
     }
 
-    const dataUrl = `data:image/png;base64,${b64}`;
-    return res.status(200).json({ image: dataUrl });
+    return res.status(200).json({ image });
 
   } catch (err) {
     return res.status(500).json({ error: String(err?.message || err) });
