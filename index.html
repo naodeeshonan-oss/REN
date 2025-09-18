@@ -14,8 +14,11 @@
 </head>
 <body>
   <h1>🎨 記念品イラスト生成</h1>
-  <p>プロンプトを入力して「生成」ボタンを押してください。</p>
-  <input id="prompt" size="50" placeholder="例: 王冠をかぶった白いチワワの誕生日イラスト">
+  <p>プロンプトを入力して「生成」ボタンを押してください。<br>
+     画像を選ぶと「編集モード」、画像なしは「新規生成」です。</p>
+  <input id="prompt" size="50" placeholder="例: 王冠をかぶった白いチワワの誕生日イラスト"><br><br>
+  <input id="image" type="file" accept="image/*"><br>
+  <small>※画像ファイルを指定すると、その画像を編集して生成します</small><br><br>
   <button id="btn">生成</button>
   <div id="result"></div>
   <div id="err" class="error"></div>
@@ -24,19 +27,33 @@
 async function generate(){
   const btn = document.getElementById("btn");
   const prompt = document.getElementById("prompt").value.trim();
+  const fileInput = document.getElementById("image");
   const result = document.getElementById("result");
   const err = document.getElementById("err");
 
   err.textContent = "";
   result.innerHTML = "";
-  if(!prompt){ err.textContent = "プロンプトを入力してください"; return; }
+  if(!prompt && (!fileInput.files || fileInput.files.length===0)){
+    err.textContent = "プロンプトか画像のどちらかを入力してください";
+    return;
+  }
 
   btn.disabled = true; btn.textContent = "生成中…";
   try{
+    let imageData = null;
+    if(fileInput.files && fileInput.files[0]){
+      imageData = await new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = ()=>resolve(reader.result); // data:image/...;base64,xxx
+        reader.onerror = reject;
+        reader.readAsDataURL(fileInput.files[0]);
+      });
+    }
+
     const r = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, imageData })
     });
     const j = await r.json();
     if(!r.ok){
