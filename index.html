@@ -12,36 +12,79 @@
     h1::before{content:"🎨";}
     .row{display:flex; gap:.5rem; align-items:center}
     input[type="text"]{flex:1; padding:.7rem .8rem; font-size:1rem; border:1px solid #ccc; border-radius:.5rem;}
-    input[type="file"]{font-size:.95rem;}
+    input[type="file"], select, label{font-size:.95rem;}
     button{padding:.65rem .9rem; font-size:1rem; border:1px solid #ccc; border-radius:.5rem; background:#fff; cursor:pointer;}
     button[disabled]{opacity:.6; cursor:default;}
-    .note{margin:1rem 0; font-size:.92rem; color:var(--muted);}
+    .note{margin:1rem 0; font-size:.92rem; color:var(--muted); background:#f7f7f7; border:1px solid #eee; border-radius:.6rem; padding:.8rem 1rem; line-height:1.7;}
     .error{color:#b00020; margin:.6rem 0;}
     img.gen{max-width:100%; margin-top:1rem; border:1px solid #ddd; border-radius:.5rem}
 
-    .loading { display:none; align-items:center; gap:.6rem; margin:.6rem 0 0; color:#555; font-size:.95rem; }
-    .walklane { position:relative; width:120px; height:28px; overflow:hidden; border:1px solid #eee; border-radius:999px; background:#fafafa; }
-    .animal { position:absolute; top:50%; transform:translate(-100%, -50%); font-size:22px; line-height:1; animation: walk 1.6s linear infinite; }
-    @keyframes walk { 0%{ transform:translate(-100%, -50%); } 100%{ transform:translate(120px, -50%); } }
+    /* ローディング（干支が右へ歩く） */
+    .loading {display:none; align-items:center; gap:.6rem; margin:.6rem 0 0; color:#555; font-size:.95rem;}
+    .walklane { position:relative; width:120px; height:28px; overflow:hidden; border:1px solid #eee; border-radius:999px; background:#fafafa;}
+    .animal { position:absolute; top:50%; transform:translate(-100%, -50%); font-size:22px; line-height:1; animation: walk 1.6s linear infinite;}
+    @keyframes walk { 0%{ transform:translate(-100%, -50%);} 100%{ transform:translate(120px, -50%);} }
+    .grid{display:grid; grid-template-columns: 1fr; gap:.6rem;}
+    @media(min-width:720px){ .grid{grid-template-columns: 1fr 1fr;} }
+    .optbox{background:#fafafa; border:1px solid #eee; border-radius:.6rem; padding:.6rem .8rem;}
   </style>
 </head>
 <body>
   <h1>好きなイラストを作ろう</h1>
 
+  <!-- 上段：プロンプト + 生成ボタン -->
   <div class="row" style="margin:.6rem 0 0">
-    <input id="prompt" type="text" placeholder="例: 富士山に登る猫 / この写真をディズニー風に" />
+    <input id="prompt" type="text" placeholder="例: 富士山に登る猫 / この写真をディズニー風に など" />
     <button id="btn">生成</button>
   </div>
 
+  <!-- 画像選択 -->
   <div style="margin:.6rem 0 .2rem">
     <input id="file" type="file" accept="image/*">
   </div>
 
-  <div class="note">
-    JPEG / PNG / WebP に対応。<br>
-    画像の保存形式によっては失敗することがあります。うまくいかない場合は一度「別名で保存」してください。
+  <!-- オプション（ベースは何もしない。選ばれた時だけ足す） -->
+  <div class="grid" style="margin:.6rem 0">
+    <div class="optbox">
+      <div style="margin-bottom:.4rem"><b>作風プリセット（任意）</b></div>
+      <select id="preset" style="width:100%">
+        <option value="">（選ばない＝ベースのまま）</option>
+        <option value="watercolor">水彩画風</option>
+        <option value="disney">ディズニー風</option>
+        <option value="ghibli">ジブリ風</option>
+        <option value="anime">アニメ調（線画っぽい）</option>
+        <option value="simple">シンプルキャラ風</option>
+      </select>
+    </div>
+
+    <div class="optbox">
+      <div style="margin-bottom:.4rem"><b>補助チェック（任意）</b></div>
+      <div><label><input type="checkbox" id="bgTransparent"> 背景を透過する</label></div>
+      <div style="display:flex; gap:.4rem; align-items:center; margin-top:.4rem">
+        <span style="white-space:nowrap">背景を変更：</span>
+        <select id="bgPreset" style="flex:1">
+          <option value="">（変更しない）</option>
+          <option>cherry blossoms</option>
+          <option>beach</option>
+          <option>blue sky</option>
+          <option>night city</option>
+          <option>school classroom</option>
+          <option>park in spring</option>
+        </select>
+      </div>
+      <div style="margin-top:.4rem"><label><input type="checkbox" id="brightnessUp"> 明るさを少し上げる</label></div>
+      <div style="margin-top:.2rem"><label><input type="checkbox" id="moodBoost"> ちょっと雰囲気UP（+20%）</label></div>
+    </div>
   </div>
 
+  <!-- 注意書き（簡略版：2〜3行） -->
+  <div class="note">
+    画像を選ぶと「編集モード」、画像なしは「新規作成」です。<br>
+    使える形式：JPEG / PNG / WebP。編集時は内部で PNG(RGBA) に変換します。<br>
+    失敗する時は端末の編集機能で「別名で保存 → PNG または JPEG」に直すと改善します。
+  </div>
+
+  <!-- ローディング：干支が歩く -->
   <div class="loading" id="loading">
     <div class="walklane"><div class="animal" id="animal">🐭</div></div>
     <span>生成中…（少しお待ちください）</span>
@@ -51,6 +94,7 @@
   <div id="result"></div>
 
 <script>
+/* 干支（右へ歩く） */
 const zodiac = ["🐭","🐮","🐯","🐰","🐲","🐍","🐴","🐑","🐵","🐔","🐶","🐗"];
 let zi = 0, zTimer=null;
 function startLoading(){
@@ -70,37 +114,75 @@ function stopLoading(){
   if (zTimer){ clearInterval(zTimer); zTimer=null; }
 }
 
+/* 画像を PNG(RGBA) に変換＆長辺1200pxへ縮小（編集モード時のみ） */
+async function toPngRgbaDataURL(file){
+  const ok = ["image/jpeg","image/png","image/webp"];
+  if (!ok.includes(file.type || "")) throw new Error("この画像形式は扱えません。JPEG/PNG/WebP を使ってください。");
+  const url = URL.createObjectURL(file);
+  const img = await new Promise((res,rej)=>{
+    const im = new Image();
+    im.onload = ()=>{ URL.revokeObjectURL(url); res(im); };
+    im.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("画像を読み込めませんでした")); };
+    im.crossOrigin = "";
+    im.src = url;
+  });
+  const maxSide = 1200;
+  let {width:w, height:h} = img;
+  const scale = Math.min(1, maxSide / Math.max(w,h));
+  const cw = Math.round(w * scale), ch = Math.round(h * scale);
+  const cv = document.createElement("canvas");
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext("2d");
+  ctx.drawImage(img, 0, 0, cw, ch);
+  return cv.toDataURL("image/png");
+}
+
+/* 生成 */
 document.getElementById("btn").addEventListener("click", generate);
 async function generate(){
   const btn = document.getElementById("btn");
   const prompt = document.getElementById("prompt").value.trim();
   const file = document.getElementById("file").files[0];
-  const result = document.getElementById("result");
+
+  const options = {
+    preset: document.getElementById("preset").value || "",
+    bgTransparent: document.getElementById("bgTransparent").checked || false,
+    bgPreset: document.getElementById("bgPreset").value || "",
+    brightnessUp: document.getElementById("brightnessUp").checked || false,
+    moodBoost: document.getElementById("moodBoost").checked || false,
+  };
+
   const err = document.getElementById("err");
+  const result = document.getElementById("result");
   err.textContent = ""; result.innerHTML = "";
 
   if(!prompt){ err.textContent = "プロンプトを入力してください。"; return; }
 
   btn.disabled = true; btn.textContent = "生成中…";
   startLoading();
+
   try{
-    let payload = new FormData();
-    payload.append("prompt", prompt);
-    if (file) payload.append("image", file);
+    let payload = { prompt, options };
+    if (file){
+      const dataUrl = await toPngRgbaDataURL(file);
+      payload.imageDataUrl = dataUrl;
+    }
 
     const r = await fetch("/api/generate", {
       method:"POST",
-      body: payload,
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload),
     });
 
     const ct = r.headers.get("content-type") || "";
     if (!ct.includes("application/json")){
       const text = await r.text();
-      throw new Error("サーバーから不正な応答: " + (text?.slice(0,120) || ""));
+      throw new Error("サーバーからの応答が不正です（JSON以外）。" + (text?.slice(0,120) || ""));
     }
 
     const j = await r.json();
     if(!r.ok){ throw new Error(j.error || "エラーが発生しました"); }
+
     result.innerHTML = `<img class="gen" src="${j.image}" alt="生成画像">`;
   }catch(e){
     err.textContent = "エラー: " + e.message;
