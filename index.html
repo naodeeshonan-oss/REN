@@ -3,100 +3,169 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>記念品イラスト かんたん生成</title>
+  <title>好きなイラストを作ろう</title>
   <style>
-    body{font-family:sans-serif; max-width:720px; margin:2rem auto; padding:1rem;}
-    input,button{padding:.6rem; font-size:1rem;}
-    button{cursor:pointer;}
-    img{max-width:100%; margin-top:1rem; border:1px solid #ccc;}
-    .hint{color:#555; font-size:.9rem; margin:.25rem 0 1rem;}
-    .error{color:#c00; margin-top:.75rem;}
+    :root{--maxw:820px}
+    body{font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+         max-width:var(--maxw); margin:2rem auto; padding:1rem; line-height:1.65}
+    h1{display:flex; align-items:center; gap:.6rem; font-size:clamp(1.4rem, 1.2rem + 1.2vw, 2rem); margin:.2rem 0 1rem}
+    h1 .icon{font-size:1.6em}
+    .row{display:flex; gap:.6rem; align-items:stretch}
+    input[type="text"]{flex:1; padding:.7rem .9rem; font-size:1rem; border:1px solid #bbb; border-radius:.5rem}
+    button{padding:.7rem 1rem; font-size:1rem; border:1px solid #999; background:#fff; border-radius:.5rem; cursor:pointer}
+    button[disabled]{opacity:.6; cursor:wait}
+    .hint{font-size:.92rem; color:#444; background:#fafafa; border:1px dashed #ddd; padding:.7rem .8rem; border-radius:.5rem; margin:.8rem 0}
+    .hint strong{color:#222}
+    .file-line{margin:.6rem 0}
+    .error{color:#b00020; margin:.6rem 0 0}
+    #result img{max-width:100%; display:block; margin-top:1rem; border:1px solid #ddd; border-radius:.5rem}
+    /* 生成中のミニアニメ（犬が歩く） */
+    .loader-wrap{height:90px; overflow:hidden; position:relative; border:1px solid #eee; border-radius:.5rem; background:#fff; margin-top:.8rem}
+    .runner{position:absolute; top:24px; left:-80px; width:80px; height:48px; font-size:40px; line-height:48px}
+    .runner.dog::after{content:"🐕";} .runner.cat::after{content:"🐈";} .runner.mouse::after{content:"🐭";}
+    .runner.run{animation:run 3.6s linear infinite}
+    @keyframes run { 0%{transform:translateX(0)} 100%{transform:translateX(calc(var(--maxw) - 40px))} }
+    .sub{font-size:.85rem; color:#666}
   </style>
 </head>
 <body>
-  <h1>🎨 記念品イラスト生成</h1>
-  <p>プロンプトを入力して「生成」ボタンを押してください。<br>画像を選ぶと「編集モード」、画像なしは「新規生成」です。</p>
-  <input id="prompt" size="60" placeholder="例: このカップルをジブリ風に仕上げて">
-  <div style="margin:.5rem 0">
-    <input id="file" type="file" accept="image/*">
+  <h1><span class="icon">🎨</span>好きなイラストを作ろう</h1>
+
+  <p class="sub">プロンプトを入力して「生成」ボタンを押してください。画像を選ぶと <strong>編集モード</strong>、画像なしは <strong>新規作成</strong> です。</p>
+
+  <!-- 横並び：テキスト入力 + 生成ボタン -->
+  <div class="row">
+    <input id="prompt" type="text" placeholder="例：夏の海ではしゃぐ子犬を油絵風で">
+    <button id="btn">生成</button>
   </div>
-  <div class="hint">※画像ファイルを指定すると、その画像を編集して生成します</div>
-  <button id="btn">生成</button>
+
+  <!-- ファイル選択 -->
+  <div class="file-line">
+    <input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+  </div>
+
+  <!-- 先に読んでおく“保険”の注意書き（素人向けに簡単） -->
+  <div class="hint">
+    <strong>画像アップロードの注意</strong><br>
+    ・使える形式：JPEG / PNG / WebP（<u>PNG は保存の仕方によって失敗することがあります</u>）<br>
+    ・失敗例：<em>unsupported mimetype: application/octet-stream</em>（拡張子はPNGでも中身が異常） / 
+      <em>format must be RGBA</em>（透明情報なしPNG）<br>
+    ・解決法：一度スマホ／PCの編集機能で開いて「<u>別名で保存 → PNG もしくは JPEG</u>」にし直すと直ることが多いです。
+  </div>
+
+  <!-- 生成中アニメ表示エリア -->
+  <div id="loading" class="loader-wrap" style="display:none">
+    <div class="runner dog run"></div>
+  </div>
 
   <div id="result"></div>
   <div id="err" class="error"></div>
 
 <script>
-function readFileAsImageDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
+/** 画像ファイルを “ちゃんとしたPNG” に再エンコードして Base64 を返す（RGBA化で事故を回避） */
+async function fileToPngBase64(file){
+  return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
     reader.onload = () => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
-        // キャンバスに描いて PNG(RGBA) 化
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0);
-        // 常に PNG にする（RGB→RGBA問題を回避）
-        const dataUrl = canvas.toDataURL('image/png');
-        resolve(dataUrl);
+        // PNG（RGBA）で出力
+        const dataUrl = canvas.toDataURL("image/png");
+        resolve(dataUrl.split(",")[1]); // base64部分だけ
       };
-      img.onerror = () => reject(new Error("画像の解釈に失敗しました"));
+      img.onerror = () => reject(new Error("画像の解析に失敗しました"));
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
   });
 }
 
+/** 見やすい日本語エラーメッセージに変換 */
+function friendlyError(msg=""){
+  const m = String(msg);
+  if (m.includes("unsupported mimetype") || m.includes("octet-stream")) {
+    return "この画像は壊れた形式で保存されています。画像編集アプリで開いて「PNG または JPEG」で保存し直してください。";
+  }
+  if (m.includes("format must be") || m.includes("RGBA")) {
+    return "PNG の内部形式が原因です。画像をいったん別名保存（PNG or JPEG）し直してから再アップロードしてください。";
+  }
+  if (m.includes("request entity too large") || m.includes("size")) {
+    return "画像サイズが大きすぎます。解像度を下げるか、JPEGで保存し直してください。";
+  }
+  if (m.toLowerCase().includes("api key")) {
+    return "APIキーの問題が出ています。サーバ側の設定をご確認ください。";
+  }
+  return m || "不明なエラーです。時間をおいてお試しください。";
+}
+
+/** ローディング表示のON/OFF */
+function setLoading(on){
+  const box = document.getElementById("loading");
+  box.style.display = on ? "block" : "none";
+}
+
 async function generate(){
   const btn = document.getElementById("btn");
   const prompt = document.getElementById("prompt").value.trim();
-  const fileInput = document.getElementById("file");
+  const file = document.getElementById("file").files[0] || null;
   const result = document.getElementById("result");
   const err = document.getElementById("err");
 
-  err.textContent = "";
-  result.innerHTML = "";
+  err.textContent = ""; result.innerHTML = "";
 
-  if(!prompt){ err.textContent = "プロンプトを入力してください"; return; }
-
-  // 画像が選ばれていたら Data URL(PNG) に変換
-  let imageData = null;
-  const file = fileInput.files && fileInput.files[0];
-  if (file) {
-    try {
-      imageData = await readFileAsImageDataURL(file); // data:image/png;base64,.....
-    } catch(e) {
-      err.textContent = e.message;
-      return;
-    }
+  if (!prompt) {
+    err.textContent = "プロンプトを入力してください。";
+    return;
   }
 
-  btn.disabled = true; btn.textContent = "生成中…";
+  btn.disabled = true; btn.textContent = "生成中…"; setLoading(true);
+
   try{
+    let payload = { prompt };
+
+    // 画像が選ばれていたら：安全なPNG(RGBA)に直してから送る
+    if (file) {
+      // 拡張子でなく中身で判断したいが、スマホ等は type が空のこともあるため再エンコードで吸収
+      const b64png = await fileToPngBase64(file);
+      payload.image = {
+        name: (file.name || "image.png").replace(/\.[^.]+$/,"") + ".png",
+        type: "image/png",
+        data: b64png
+      };
+    }
+
     const r = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, imageData })
+      body: JSON.stringify(payload),
     });
+
     const j = await r.json().catch(()=>({error:"サーバーからの応答が不正です"}));
 
-    if(!r.ok){
-      err.textContent = "エラー: " + (j.error || `HTTP ${r.status}`);
+    if (!r.ok) {
+      err.textContent = "エラー： " + friendlyError(j.error);
       return;
     }
+
     if (!j.image) {
-      err.textContent = "エラー: 画像データがありません";
+      err.textContent = "エラー：画像データがありません";
       return;
     }
+
     result.innerHTML = `<img src="${j.image}" alt="生成画像">`;
+    // 結果へスクロール
+    result.scrollIntoView({behavior:"smooth", block:"start"});
+
   }catch(e){
-    err.textContent = "通信エラー: " + e.message;
+    err.textContent = "通信エラー： " + friendlyError(e.message || e);
   }finally{
-    btn.disabled = false; btn.textContent = "生成";
+    btn.disabled = false; btn.textContent = "生成"; setLoading(false);
   }
 }
 
