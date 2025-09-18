@@ -5,197 +5,110 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>好きなイラストを作ろう</title>
   <style>
-    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","BIZ UDPGothic","Noto Sans JP",sans-serif; max-width:900px; margin:2rem auto; padding:1rem;}
-    h1{display:flex; gap:.5rem; align-items:center; font-size:1.8rem;}
+    :root { --fg:#111; --muted:#666; --acc:#0aa; }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+         max-width:920px;margin:2rem auto;padding:1rem;color:var(--fg);}
+    h1{display:flex;gap:.5rem;align-items:center;margin:.2rem 0 1rem;}
     h1::before{content:"🎨";}
-    .row{display:flex; gap:.5rem; align-items:center; margin:.25rem 0;}
-    input[type="text"]{flex:1; padding:.6rem; font-size:1rem;}
-    select,button{padding:.55rem .7rem; font-size:.95rem; cursor:pointer;}
-    .opts{display:flex; flex-wrap:wrap; gap:1rem; margin:.5rem 0 0;}
-    .note{font-size:.9rem; color:#444; background:#fafafa; border:1px solid #eee; padding:.8rem; border-radius:.5rem; line-height:1.6;}
-    .error{color:#b00020; margin-top:.5rem;}
-    img{max-width:100%; margin-top:1rem; border:1px solid #ddd;}
-    .progress{height:8px; background:#eee; border-radius:999px; overflow:hidden; margin:.5rem 0; display:none}
-    .bar{height:100%; width:0%; background:#4a90e2; transition:width .25s}
-    .loading{display:inline-flex; gap:.4rem; align-items:center; margin-left:.5rem; font-size:.9rem; color:#666}
-    .dot{width:6px; height:6px; border-radius:50%; background:#999; animation:bubble 1s infinite alternate}
-    .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
-    @keyframes bubble{from{transform:translateY(0)} to{transform:translateY(-5px)}}
+    .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    input[type="text"]{flex:1;min-width:260px;padding:.7rem .8rem;font-size:1rem;}
+    button{padding:.65rem 1rem;font-size:1rem;cursor:pointer}
+    .hint{color:var(--muted);font-size:.92rem;margin:.75rem 0 1rem;line-height:1.5}
+    .card{border:1px solid #e4e4e4;border-radius:12px;padding:.9rem;background:#fafafa}
+    .opts{display:flex;gap:1rem;flex-wrap:wrap;margin:.25rem 0 .25rem}
+    label{display:flex;gap:.4rem;align-items:center;white-space:nowrap}
+    img{max-width:100%;margin-top:1rem;border:1px solid #ddd;border-radius:6px}
+    .error{color:#c00;margin-top:.6rem}
+    .loader{height:24px;display:flex;gap:4px;align-items:center;margin:.4rem 0}
+    .dot{width:6px;height:6px;border-radius:50%;background:#999;animation:b .9s infinite}
+    .dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+    @keyframes b{0%{opacity:.3;transform:translateX(0)}50%{opacity:1;transform:translateX(3px)}100%{opacity:.3;transform:translateX(0)}}
   </style>
 </head>
 <body>
   <h1>好きなイラストを作ろう</h1>
 
-  <!-- 1行目：プロンプト + 生成ボタン（右側）-->
   <div class="row">
-    <input id="prompt" type="text" placeholder="例：富士山に登る猫 / 人物写真は“笑顔で似せて、ややアニメ調”など">
-    <button id="btn">生成</button>
-    <span id="spin" class="loading" style="display:none">
-      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-    </span>
+    <input id="prompt" type="text" placeholder="例: 富士山に登る猫 / 人物写真は“笑顔で似せて、ややアニメ調など”">
+    <button id="go">生成</button>
   </div>
 
-  <!-- 2行目：作風プリセット + 画像アップロード -->
-  <div class="row">
+  <div class="row" style="margin:.4rem 0 0">
     <select id="preset">
       <option value="">作風プリセット（任意）</option>
-      <option value="pixar">柔らかい“海外アニメ映画”風。大きめの目・丸みのある陰影・暖色。</option>
-      <option value="anime">日本アニメ調。輪郭くっきり、軽めの陰影、鮮やかな配色。</option>
-      <option value="watercolor">水彩イラスト調。紙の質感、にじみ、淡い色。</option>
-      <option value="oil">油絵風。厚塗り、筆致感、劇的な光。</option>
-      <option value="flat">フラットポップ。等幅線、ベタ塗り、シンプルな形。</option>
+      <option value="anime-soft">やさしいアニメ調</option>
+      <option value="watercolor">水彩タッチで柔らかく</option>
+      <option value="pixar-soft">ピクサー風・控えめ</option>
+      <option value="ghibli-soft">ジブリ風・控えめ</option>
     </select>
 
-    <input id="file" type="file" accept="image/*">
+    <input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+    <label><input type="checkbox" id="lite" checked> ちょい盛り（+20%だけ雰囲気よく）</label>
+    <label><input type="checkbox" id="smile" checked> 自然な笑顔にする</label>
+    <label><input type="checkbox" id="clean" checked> 肌・髪をきれいに整える（やりすぎない）</label>
+    <label><input type="checkbox" id="lockFace" checked> 本人の特徴は強く残す（別人化しない）</label>
+    <label title="※強いスタイル指定。別人化のリスクが上がります">
+      <input type="checkbox" id="strongStyle"> スタイル強め
+    </label>
   </div>
 
-  <!-- 3行目：人物向け ちょい盛りオプション -->
-  <div class="opts">
-    <label><input type="checkbox" id="enhance"> ちょい盛り（+20%だけ雰囲気よく）</label>
-    <label><input type="checkbox" id="smile"> 自然な笑顔にする</label>
-    <label><input type="checkbox" id="skin"> 肌・髪をきれいに整える（やりすぎない）</label>
-    <label><input type="checkbox" id="keep"> 本人の特徴は残す（別人化しない）</label>
+  <div class="card hint">
+    <div><b>画像アップロードの注意</b></div>
+    <div>・使える形式：JPEG / PNG / WebP （<u>PNG は保存の仕方によって失敗することがあります</u>）</div>
+    <div>・失敗例：<code>unsupported mimetype: application/octet-stream</code>（拡張子がPNGでも中身が異常） /
+         <code>format must be RGBA</code>（透明情報なしPNG）</div>
+    <div>・解決法：一度スマホ/PCの編集機能で開いて「<b>別名で保存 → PNG もしくは JPEG</b>」にし直すと直ることが多いです。</div>
   </div>
 
-  <div class="note" style="margin:.8rem 0;">
-    <b>画像アップロードの注意</b><br>
-    使える形式：JPEG / PNG / WebP（<u>PNG は保存の仕方によって失敗することがあります</u>）<br>
-    失敗例：<code>unsupported mimetype: application/octet-stream</code>（拡張子はPNGでも中身が異常） / <code>format must be RGBA（透明情報なしPNG）</code><br>
-    解決法：一度スマホ/PCの編集機能で開いて「<b>別名で保存 → PNG もしくは JPEG</b>」にし直すと直ることが多いです。
+  <div id="loader" class="loader" style="display:none">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <span style="color:#666;margin-left:.4rem">生成中…（数秒〜数十秒）</span>
   </div>
-
-  <div class="progress" id="pg"><div class="bar" id="bar"></div></div>
 
   <div id="result"></div>
   <div id="err" class="error"></div>
 
 <script>
-/* ---------- プロンプト整形（テンプレート化） ---------- */
-function buildPrompt(userText, opts){
-  const lines = [];
+const el = (id)=>document.getElementById(id);
+async function generate(){
+  const prompt = el("prompt").value.trim();
+  const file = el("file").files[0] || null;
+  const opts = {
+    preset: el("preset").value,
+    lite: el("lite").checked,
+    smile: el("smile").checked,
+    clean: el("clean").checked,
+    lockFace: el("lockFace").checked,
+    strongStyle: el("strongStyle").checked
+  };
 
-  // ユーザーの要望（先頭はそのまま）
-  if (userText) lines.push(userText);
+  el("err").textContent=""; el("result").innerHTML="";
+  if(!prompt){ el("err").textContent="プロンプトを入力してください。"; return; }
 
-  // 作風プリセット
-  const preset = {
-    pixar: "柔らかい海外アニメ映画のルック。大きめの目、丸みのある形状、暖色寄りのカラー、やさしいハイライト。",
-    anime: "日本アニメ調。輪郭線ははっきり、陰影は控えめ、色は鮮やかでクリーン、目は生き生きと。",
-    watercolor: "水彩画タッチ。紙のテクスチャ、にじみやグラデーション、柔らかな配色。",
-    oil: "油絵風。厚塗りの筆致、重厚な陰影、ドラマチックなライティング。",
-    flat: "フラットポップ。シンプルな形状、等幅線、ベタ塗り、コントラスト高め。"
-  }[opts.preset] || "";
+  el("go").disabled = true; el("loader").style.display="flex";
 
-  if (preset) lines.push(`スタイル: ${preset}`);
-
-  // 人物向け“ちょい盛り”の掟（やりすぎ禁止で安定化）
-  const softRules = [];
-  if (opts.enhance) softRules.push("全体を20%だけ魅力的に（清潔感・バランス・光の当て方を微調整）。やりすぎ禁止。");
-  if (opts.smile)   softRules.push("自然な微笑み。歯は不自然に白くしない。目尻は優しく。");
-  if (opts.skin)    softRules.push("肌・髪の質感を軽く整える。肌はテカらせない、毛穴やシワは残してリアルさを維持。");
-  if (opts.keep)    softRules.push("本人の面影・顔の骨格・髪型・輪郭・ほくろ等のアイデンティティは維持。別人化しない。");
-  if (softRules.length) lines.push("人物補正指示: " + softRules.join(" "));
-
-  // 仕上げの共通ルール
-  lines.push("出力は高解像度、構図は見栄え良く、色は破綻させない。手や指の形状は自然に。");
-
-  return lines.join("\n");
-}
-
-/* ---------- フロントの挙動 ---------- */
-const el = {
-  prompt: document.getElementById("prompt"),
-  preset: document.getElementById("preset"),
-  file:    document.getElementById("file"),
-  btn:     document.getElementById("btn"),
-  spin:    document.getElementById("spin"),
-  result:  document.getElementById("result"),
-  err:     document.getElementById("err"),
-  pg:      document.getElementById("pg"),
-  bar:     document.getElementById("bar"),
-  enhance: document.getElementById("enhance"),
-  smile:   document.getElementById("smile"),
-  skin:    document.getElementById("skin"),
-  keep:    document.getElementById("keep")
-};
-
-function setBusy(b){
-  el.btn.disabled = b;
-  el.spin.style.display = b ? "inline-flex" : "none";
-  el.pg.style.display = b ? "block" : "none";
-  el.bar.style.width = b ? "25%" : "0%";
-}
-
-async function fileToDataURL(file){
-  const buf = await file.arrayBuffer();
-  const bin = new Uint8Array(buf);
-  const b64 = btoa(Array.from(bin).map(b=>String.fromCharCode(b)).join(""));
-  return `data:${file.type || "image/*"};base64,${b64}`;
-}
-
-document.getElementById("btn").addEventListener("click", async () => {
-  el.err.textContent = "";
-  el.result.innerHTML = "";
-
-  const userText = el.prompt.value.trim();
-  if(!userText){ el.err.textContent = "プロンプトを入力してください。"; return; }
-
-  // ①テンプレで最終プロンプトを合成
-  const finalPrompt = buildPrompt(userText, {
-    preset : el.preset.value,
-    enhance: el.enhance.checked,
-    smile  : el.smile.checked,
-    skin   : el.skin.checked,
-    keep   : el.keep.checked
-  });
-
-  // ②画像（任意）
-  let imageDataUrl = null;
-  if (el.file.files && el.file.files[0]) {
-    const f = el.file.files[0];
-
-    // 簡単チェック：壊れPNG対策（application/octet-stream回避）
-    if (!/^image\/(png|jpeg|webp)$/i.test(f.type)) {
-      el.err.textContent = `この画像の種類（${f.type||"unknown"}）は扱えません。JPEG/PNG/WebP を選んでください。`;
-      return;
-    }
-    imageDataUrl = await fileToDataURL(f);
-  }
-
-  // ③送信
   try{
-    setBusy(true);
-    el.bar.style.width = "55%";
+    const fd = new FormData();
+    fd.append("prompt", prompt);
+    fd.append("options", JSON.stringify(opts));
+    if(file) fd.append("image", file);
 
-    const r = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: finalPrompt,
-        image: imageDataUrl || null
-      })
-    });
-
-    el.bar.style.width = "85%";
-
-    const j = await r.json();
-    if(!r.ok){
-      // エラーをわかりやすく
-      const msg = (j && j.error) ? String(j.error) : `HTTP ${r.status}`;
-      el.err.innerHTML =
-        `エラー：${msg.replaceAll("<","&lt;")}<br>
-        <small>対処のヒント：画像を一度「別名で保存 → JPEG/PNG」にし直すと直る場合があります。</small>`;
-      return;
-    }
-    // 表示
-    el.result.innerHTML = `<img src="${j.image}" alt="生成画像">`;
-    el.bar.style.width = "100%";
+    const r = await fetch("/api/generate", { method:"POST", body: fd });
+    const j = await r.json().catch(()=>({error:"サーバーからの応答が不正です"}));
+    if(!r.ok){ el("err").textContent = "エラー: " + (j.error || r.statusText); }
+    else{ el("result").innerHTML = `<img src="${j.image}" alt="生成画像">`; }
   }catch(e){
-    el.err.textContent = `通信エラー：${e.message}`;
+    el("err").textContent = "通信エラー: " + e.message;
   }finally{
-    setBusy(false);
-    setTimeout(()=>{ el.pg.style.display="none"; }, 600);
+    el("go").disabled = false; el("loader").style.display="none";
   }
+}
+el("go").addEventListener("click", generate);
+
+// モバイルで「ファイルを選択」が見えない時対策（iOS Safari等で幅が足りない時）
+window.addEventListener("load", () => {
+  const f = el("file");
+  f.style.maxWidth = "48%";
 });
 </script>
 </body>
