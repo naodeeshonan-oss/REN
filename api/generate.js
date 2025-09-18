@@ -5,95 +5,77 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { prompt, imageDataUrl } = await readJson(req);
-
+    const { prompt, image } = req.body || {};
     if (!prompt || typeof prompt !== "string") {
       return res.status(400).json({ error: "prompt を入れてください" });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "OPENAI_API_KEY が未設定です（Vercel に入れてください）" });
+    // APIキーの整形（export や OPENAI_API_KEY= を除去）
+    let apiKey = (process.env.OPENAI_API_KEY || "")
+      .replace(/^export\s+/i, "")
+      .replace(/^OPENAI_API_KEY\s*=\s*/i, "")
+      .trim();
+
+    if (!apiKey || !apiKey.startsWith("sk-")) {
+      return res.status(500).json({ error: `OPENAI_API_KEY が不正です（先頭: "${(apiKey || "").slice(0,6)}..."）` });
     }
 
-    // 画像が付いていたら「編集モード」, なければ「新規生成」
-    if (imageDataUrl) {
-      // DataURL → PNGバイナリ
-      const pngBuffer = dataURLtoBuffer(imageDataUrl);
+    let endpoint = "https://api.openai.com/v1/images/generations";
+    let body = {
+      model: "gpt-image-1",
+      prompt,
+      size: "1024x1024",
+      quality: "high"
+    };
 
-      // multipart/form-data で /images/edits に投げる
-      const form = new FormData();
-      form.append("model", "gpt-image-1");
-      form.append("prompt", prompt);
-      form.append("size", "1024x1024");
-      form.append("image", new Blob([pngBuffer], { type: "image/png" }), "image.png");
-
-      const r = await fetch("https://api.openai.com/v1/images/edits", {
+    // 画像がアップロードされた場合は「編集モード」
+    if (image) {
+      endpoint = "https://api.openai.com/v1/images/edits";
+      // OpenAI の images/edits は multipart/form-data が必要
+      // ここは簡易的にサポート：base64 → バイナリ化して送信
+      const buffer = Buffer.from(image, "base64");
+      const formData = new FormData();
+      formData.append("image", new Blob([buffer]), "input.png");
+      formData.append("prompt", prompt);
+      formData.append("size", "1024x1024");
+      formData.append("model", "gpt-image-1");
+      const r = await fetch(endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
+        headers: { "Authorization": `Bearer ${apiKey}` },
+        body: formData
       });
-
       const data = await r.json();
       if (!r.ok) {
-        return res.status(r.status).json({ error: data?.error?.message || "OpenAI エラー (edits)" });
+        return res.status(r.status).json({ error: data?.error?.message || "OpenAI エラー" });
       }
-
-      const b64 = data?.data?.[0]?.b64_json;
-      if (!b64) return res.status(500).json({ error: "画像データがありません(edits)" });
-
-      return res.status(200).json({ image: `data:image/png;base64,${b64}` });
-    } else {
-      // 新規生成: /images/generations
-      const r = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          prompt,
-          size: "1024x1024",
-          quality: "high",
-          response_format: "b64_json",
-        }),
-      });
-
-      const data = await r.json();
-      if (!r.ok) {
-        return res.status(r.status).json({ error: data?.error?.message || "OpenAI エラー (generations)" });
-      }
-
-      const b64 = data?.data?.[0]?.b64_json;
-      if (!b64) return res.status(500).json({ error: "画像データがありません(generations)" });
-
-      return res.status(200).json({ image: `data:image/png;base64,${b64}` });
+      const url = data?.data?.[0]?.url;
+      return res.status(200).json({ image: url });
     }
+
+    // 通常の新規生成
+    const r = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await r.json();
+    if (!r.ok) {
+      return res.status(r.status).json({ error: data?.error?.message || "OpenAI エラー" });
+    }
+
+    const item = data?.data?.[0] || {};
+    const imageUrl = item.url || null;
+    if (!imageUrl) {
+      return res.status(500).json({ error: "画像データがありません" });
+    }
+
+    return res.status(200).json({ image: imageUrl });
+
   } catch (err) {
     return res.status(500).json({ error: String(err?.message || err) });
   }
-}
-
-// -------- helpers --------
-function dataURLtoBuffer(dataUrl) {
-  const comma = dataUrl.indexOf(",");
-  if (comma === -1) throw new Error("DataURL が不正です");
-  const b64 = dataUrl.slice(comma + 1);
-  return Buffer.from(b64, "base64");
-}
-
-function readJson(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", (c) => (body += c));
-    req.on("end", () => {
-      try {
-        resolve(JSON.parse(body || "{}"));
-      } catch (e) {
-        reject(new Error("JSON をパースできません"));
-      }
-    });
-    req.on("error", reject);
-  });
 }
