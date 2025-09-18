@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>記念品イラスト かんたん生成</title>
   <style>
-    body{font-family:sans-serif; max-width:720px; margin:2rem auto; padding:1rem;}
-    input,button{padding:.6rem; font-size:1rem;}
-    button{cursor:pointer;}
-    img{max-width:100%; margin-top:1rem; border:1px solid #ccc;}
-    .error{color:#c00; margin-top:.5rem;}
+    body { font-family:sans-serif; max-width:720px; margin:2rem auto; padding:1rem; }
+    input,button { padding:.6rem; font-size:1rem; }
+    button { cursor:pointer; margin-top:.5rem; }
+    img { max-width:100%; margin-top:1rem; border:1px solid #ccc; }
+    .error { color:#c00; margin-top:.5rem; }
   </style>
 </head>
 <body>
   <h1>🎨 記念品イラスト生成</h1>
-  <p>プロンプトを入力して「生成」ボタンを押してください。<br>
-     画像を選ぶと「編集モード」、画像なしは「新規生成」です。</p>
-  <input id="prompt" size="50" placeholder="例: 王冠をかぶった白いチワワの誕生日イラスト"><br><br>
-  <input id="image" type="file" accept="image/*"><br>
-  <small>※画像ファイルを指定すると、その画像を編集して生成します</small><br><br>
+  <p>プロンプトを入力して「生成」ボタンを押してください。</p>
+  <input id="prompt" size="50" placeholder="例: 王冠をかぶった白いチワワの誕生日イラスト">
+  <br>
+  <input type="file" id="fileInput" accept="image/*">
+  <br>
   <button id="btn">生成</button>
   <div id="result"></div>
   <div id="err" class="error"></div>
@@ -27,34 +27,34 @@
 async function generate(){
   const btn = document.getElementById("btn");
   const prompt = document.getElementById("prompt").value.trim();
-  const fileInput = document.getElementById("image");
+  const fileInput = document.getElementById("fileInput");
   const result = document.getElementById("result");
   const err = document.getElementById("err");
 
   err.textContent = "";
   result.innerHTML = "";
-  if(!prompt && (!fileInput.files || fileInput.files.length===0)){
-    err.textContent = "プロンプトか画像のどちらかを入力してください";
-    return;
-  }
+  if(!prompt){ err.textContent = "プロンプトを入力してください"; return; }
 
   btn.disabled = true; btn.textContent = "生成中…";
+
   try{
-    let imageData = null;
-    if(fileInput.files && fileInput.files[0]){
-      imageData = await new Promise((resolve, reject)=>{
-        const reader = new FileReader();
-        reader.onload = ()=>resolve(reader.result); // data:image/...;base64,xxx
-        reader.onerror = reject;
-        reader.readAsDataURL(fileInput.files[0]);
+    let imageBase64 = null;
+    if(fileInput.files.length > 0){
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      imageBase64 = await new Promise((resolve,reject)=>{
+        reader.onload = ()=>resolve(reader.result.split(",")[1]);
+        reader.onerror = ()=>reject("ファイル読み込み失敗");
+        reader.readAsDataURL(file);
       });
     }
 
     const r = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, imageData })
+      body: JSON.stringify({ prompt, image: imageBase64 })
     });
+
     const j = await r.json();
     if(!r.ok){
       err.textContent = "エラー: " + (j.error || "不明なエラー");
