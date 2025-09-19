@@ -1,8 +1,4 @@
 // /api/generate.js
-// ベースは「何もしない」。オプションが入った時だけ足す。
-// フロントからは JSON を受け取り、画像付きの場合は dataURL → FormData に変換して
-// OpenAI 画像編集APIに渡します。
-
 export const config = { api: { bodyParser: true } }; // JSON受け取り用
 
 function cleanseKey(raw) {
@@ -14,9 +10,8 @@ function cleanseKey(raw) {
 
 function buildPrompt(basePrompt, options = {}, isEdit) {
   const lines = [];
-  lines.push(basePrompt); // ベースはそのまま
+  lines.push(basePrompt);
 
-  // --- 作風プリセット（選ばれた時だけ足す） ---
   const preset = options.preset || "";
   const presets = {
     watercolor:
@@ -32,13 +27,11 @@ function buildPrompt(basePrompt, options = {}, isEdit) {
   };
   if (preset && presets[preset]) lines.push(presets[preset]);
 
-  // --- 補助オプション（チェックされた時だけ足す） ---
   if (options.bgTransparent) lines.push("background: transparent (PNG alpha)");
   if (options.bgPreset) lines.push(`background: ${options.bgPreset}`);
   if (options.brightnessUp) lines.push("slightly brighten the overall exposure");
   if (options.moodBoost) lines.push("enhance mood by about 20%, keep it natural");
 
-  // 編集モード時は“本人らしさ”を守る
   if (isEdit) {
     lines.push(
       "STRICT: preserve the subject's identity and likeness (>95%).",
@@ -50,7 +43,6 @@ function buildPrompt(basePrompt, options = {}, isEdit) {
   return lines.join("\n");
 }
 
-// data:image/png;base64,... → Blob（Node18+）
 function dataUrlToBlob(dataUrl) {
   const m = /^data:(.*?);base64,(.*)$/i.exec(dataUrl || "");
   if (!m) throw new Error("invalid data URL");
@@ -77,16 +69,15 @@ export default async function handler(req, res) {
     const isEdit = !!imageDataUrl;
     const finalPrompt = buildPrompt(prompt, options, isEdit);
 
-    // 画像編集（画像あり）
+    // 編集モード
     if (isEdit) {
       const fileBlob = dataUrlToBlob(imageDataUrl);
       const form = new FormData();
       form.append("model", "gpt-image-1");
       form.append("prompt", finalPrompt);
-      // OpenAIは image[] で受ける
       form.append("image[]", fileBlob, "image.png");
-      form.append("size", "512x512");          // ★ 512固定
-      form.append("quality", "standard");      // ★ コスト軽め
+      form.append("size", "512x512");
+      form.append("quality", "low");
 
       const r = await fetch("https://api.openai.com/v1/images/edits", {
         method: "POST",
@@ -108,7 +99,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ image });
     }
 
-    // 新規生成（画像なし）
+    // 新規生成
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -118,8 +109,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "gpt-image-1",
         prompt: finalPrompt,
-        size: "512x512",          // ★ 512固定
-        quality: "standard",      // ★ コスト軽め
+        size: "512x512",
+        quality: "low",
       }),
     });
 
