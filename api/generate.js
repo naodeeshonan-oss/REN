@@ -1,73 +1,28 @@
-// /api/generate.js  — 3プリセット版（画像編集なし／新規生成のみ）
+// /api/generate.js  — txt2img / img2img 両対応＋n枚
 export const config = { api: { bodyParser: true } };
 
 function cleanseKey(raw) {
-  return (raw || "")
-    .replace(/^export\s+/i, "")
-    .replace(/^OPENAI_API_KEY\s*=\s*/i, "")
-    .trim();
+  return (raw || "").replace(/^export\s+/i, "").replace(/^OPENAI_API_KEY\s*=\s*/i, "").trim();
 }
 
-// 3プリセット本文（日本語＋英語）
-// UI側の options.preset は "chibi" | "mature" | "street" を送ってください
 const PRESET_TEXT = {
   chibi: `2Dのちびキャラクタースタイルのイラスト。
 頭が大きめでデフォルメ、かわいく親しみやすい雰囲気。
-アニメ調の太めの線、明るい色使い、フラットな彩色。
-背景は白。
-人物は写真の特徴（髪型・服装・雰囲気）を反映。
-孫とおじいちゃん、夫婦、親子、友達など、どんな組み合わせでも可能。
-
-English:
-A 2D digital illustration in cute chibi style.
-Characters have large heads, small bodies, rounded features, and a friendly cartoonish look.
-Anime-style bold outlines, flat bright coloring, cheerful atmosphere.
-Simple white background.
-Reflect the photo’s features (hairstyle, clothing, vibe).
-Works for any combination: grandparents and grandchildren, couples, friends, parents and kids, etc.`,
-
-  mature: `2Dのアニメ風イラスト。
-リアル寄りのアニメ調、自然な頭身で落ち着いた大人の雰囲気。
-柔らかい陰影、シンプルで清潔感ある彩色。
-背景は白。
-人物は写真の特徴を反映、家族・夫婦・友人など幅広く対応。
-
-English:
-A 2D anime-style digital illustration.
-Semi-realistic anime look with natural proportions and a mature, clean atmosphere.
-Soft shading, simple and neat coloring.
-White background.
-Reflects the photo’s features, suitable for couples, family members, friends, or any age group.`,
-
-  street: `2Dのアニメ／マンガ風イラスト。
-カジュアルでポップ、ヒップホップやストリート感のある雰囲気。
-標準的な頭身（ちびキャラではない）。
-男性はキャップやTシャツ、女性は明るい表情など、元気で楽しい印象。
-太めでクリーンな線、コントラスト強めの彩色。
-背景は白。
-
-English:
-A 2D anime/manga style illustration.
-Casual and pop atmosphere with a slight hip-hop/street vibe.
-Standard proportions (not chibi).
-Male character can wear a cap and T-shirt, female character has a bright cheerful expression.
-Bold clean outlines, vivid and high-contrast colors for a fun energetic look.
-Simple white background.
-Works for any combination: friends, couples, grandparents and grandchildren, or parent and child.`,
+アニメ調の太めの線、明るい色使い、フラットな彩色。背景は白。
+English: cute chibi style, big head small body, bold outlines, flat bright colors, white background.`,
+  mature: `2Dのアニメ風イラスト。自然な頭身で落ち着いた雰囲気。柔らかい陰影、清潔感ある彩色、白背景。
+English: semi-realistic anime, natural proportions, soft shading, clean coloring, white background.`,
+  street: `2Dのアニメ／マンガ風。カジュアルでポップ、ストリート感。太めの線、コントラスト強め、白背景。
+English: anime/manga with casual street vibe, bold clean outlines, vivid high-contrast colors, white background.`
 };
 
-// プロンプト組み立て
 function buildPrompt(userPrompt = "", options = {}) {
   const lines = [];
-
-  // プリセット（必須想定。無指定なら userPrompt のみで実行）
   const p = (options.preset || "").toLowerCase();
   if (PRESET_TEXT[p]) lines.push(PRESET_TEXT[p]);
 
-  // 追記テキスト（任意）— UIの自由入力欄をそのまま足したいとき用
-  if (userPrompt && typeof userPrompt === "string") lines.push(userPrompt.trim());
+  if (userPrompt) lines.push(String(userPrompt).trim());
 
-  // 補助オプション
   if (options.bgTransparent) lines.push("background: transparent (PNG alpha)");
   if (options.bgPreset) lines.push(`background: ${options.bgPreset}`);
   if (options.brightnessUp) lines.push("slightly brighten the overall exposure");
@@ -76,54 +31,63 @@ function buildPrompt(userPrompt = "", options = {}) {
   return lines.join("\n");
 }
 
+function dataUrlToBlob(dataUrl) {
+  const m = /^data:(.*?);base64,(.*)$/i.exec(dataUrl || "");
+  if (!m) throw new Error("invalid data URL");
+  const mime = m[1] || "image/png";
+  const buf = Buffer.from(m[2], "base64");
+  return new Blob([buf], { type: mime });
+}
+
 export default async function handler(req, res) {
-  if (req.method !== "POST")
-    return res.status(405).json({ error: "POST だけ受け付けます" });
+  if (req.method !== "POST") return res.status(405).json({ error: "POSTのみ" });
 
   try {
-    const { prompt = "", options = {} } = req.body || {};
-
-    // プリセットも自由入力も空ならエラー
-    if (!options?.preset && !prompt)
-      return res.status(400).json({ error: "preset か prompt のどちらかを入れてください" });
-
+    const { prompt = "", imageDataUrl, options = {} } = req.body || {};
     const apiKey = cleanseKey(process.env.OPENAI_API_KEY);
-    if (!apiKey || !apiKey.startsWith("sk-"))
-      return res.status(500).json({ error: "OPENAI_API_KEY が未設定または不正です" });
+    if (!apiKey?.startsWith("sk-")) return res.status(500).json({ error: "OPENAI_API_KEY 未設定" });
 
     const finalPrompt = buildPrompt(prompt, options);
+    const size = options.size || "1024x1024";
+    const quality = options.quality || "low";
+    const n = Math.min(Math.max(Number(options.n || 1), 1), 8); // 1〜8
 
-    // 新規生成（1024固定／low固定）
+    // 画像あり = img2img (edits)
+    if (imageDataUrl) {
+      const form = new FormData();
+      form.append("model", "gpt-image-1");
+      form.append("prompt", finalPrompt);
+      form.append("image[]", dataUrlToBlob(imageDataUrl), "image.png");
+      form.append("size", size);
+      form.append("quality", quality);
+      form.append("n", String(n));
+
+      const r = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "edits失敗" });
+
+      const images = (data?.data || []).map(it => it.url || (it.b64_json ? `data:image/png;base64,${it.b64_json}` : null)).filter(Boolean);
+      return res.status(200).json({ images });
+    }
+
+    // 画像なし = txt2img
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt: finalPrompt,
-        size: "1024x1024",
-        quality: "low",
-        n: 1,
-      }),
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "gpt-image-1", prompt: finalPrompt, size, quality, n })
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok)
-      return res
-        .status(r.status)
-        .json({ error: data?.error?.message || "OpenAI 生成APIエラー" });
+    if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "generations失敗" });
 
-    const item = data?.data?.[0] || {};
-    const image =
-      item.url ||
-      (item.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
-
-    if (!image) return res.status(500).json({ error: "画像データがありません" });
-
-    return res.status(200).json({ image });
-  } catch (err) {
-    return res.status(500).json({ error: String(err?.message || err) });
+    const images = (data?.data || []).map(it => it.url || (it.b64_json ? `data:image/png;base64,${it.b64_json}` : null)).filter(Boolean);
+    return res.status(200).json({ images });
+  } catch (e) {
+    return res.status(500).json({ error: String(e?.message || e) });
   }
 }
