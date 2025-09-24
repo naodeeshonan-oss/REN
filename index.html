@@ -63,7 +63,7 @@
         <button id="genBtn">生成</button>
         <span id="status" class="muted"></span>
       </div>
-      <p class="muted">※ このページは「写真アップロード機能」を外し、3つのプリセットだけで新規生成します。サイズは 1024×1024・品質 low 固定。</p>
+      <p class="muted">※ 写真アップ機能は外してあります。3プリセット＋任意の追記で新規生成します（1024×1024／quality: low）。</p>
     </div>
 
     <div class="card">
@@ -92,7 +92,7 @@ async function generate() {
   a.removeAttribute("href");
 
   const payload = {
-    prompt: $("#prompt").value.trim(), // 任意
+    prompt: $("#prompt").value.trim(),
     options: {
       preset: $("#preset").value || undefined,           // "chibi" | "mature" | "street"
       bgTransparent: $("#bgTransparent").checked || undefined,
@@ -102,7 +102,6 @@ async function generate() {
     },
   };
 
-  // 空送信防止（サーバ側でもバリデーションしているが、UIでもメッセージ出す）
   if (!payload.options.preset && !payload.prompt) {
     status.textContent = "プリセットか自由追記のどちらかは入力してください。";
     btn.disabled = false;
