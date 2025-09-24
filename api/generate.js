@@ -1,4 +1,4 @@
-// /api/generate.js  — txt2img / img2img 両対応＋n枚
+// /api/generate.js  — txt2img / img2img 両対応、n自動上限、1024固定・low固定
 export const config = { api: { bodyParser: true } };
 
 function cleanseKey(raw) {
@@ -44,22 +44,23 @@ export default async function handler(req, res) {
 
   try {
     const { prompt = "", imageDataUrl, options = {} } = req.body || {};
+
     const apiKey = cleanseKey(process.env.OPENAI_API_KEY);
     if (!apiKey?.startsWith("sk-")) return res.status(500).json({ error: "OPENAI_API_KEY 未設定" });
 
     const finalPrompt = buildPrompt(prompt, options);
-    const size = options.size || "1024x1024";
-    const quality = options.quality || "low";
-    const n = Math.min(Math.max(Number(options.n || 1), 1), 8); // 1〜8
+    const requestedN = Number(options.n || 1);
+    const maxN = imageDataUrl ? 5 : 8; // img2imgは「入力画像/分=5」制限
+    const n = Math.min(Math.max(requestedN, 1), maxN);
 
-    // 画像あり = img2img (edits)
+    // 画像あり -> edits (img2img)
     if (imageDataUrl) {
       const form = new FormData();
       form.append("model", "gpt-image-1");
       form.append("prompt", finalPrompt);
       form.append("image[]", dataUrlToBlob(imageDataUrl), "image.png");
-      form.append("size", size);
-      form.append("quality", quality);
+      form.append("size", "1024x1024");
+      form.append("quality", "low");
       form.append("n", String(n));
 
       const r = await fetch("https://api.openai.com/v1/images/edits", {
@@ -69,23 +70,29 @@ export default async function handler(req, res) {
       });
 
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "edits失敗" });
+      if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "OpenAI 編集APIエラー" });
 
-      const images = (data?.data || []).map(it => it.url || (it.b64_json ? `data:image/png;base64,${it.b64_json}` : null)).filter(Boolean);
+      const images = (data?.data || [])
+        .map(it => it.url || (it.b64_json ? `data:image/png;base64,${it.b64_json}` : null))
+        .filter(Boolean);
+
       return res.status(200).json({ images });
     }
 
-    // 画像なし = txt2img
+    // 画像なし -> generations (txt2img)
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-image-1", prompt: finalPrompt, size, quality, n })
+      body: JSON.stringify({ model: "gpt-image-1", prompt: finalPrompt, size: "1024x1024", quality: "low", n })
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "generations失敗" });
+    if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "OpenAI 生成APIエラー" });
 
-    const images = (data?.data || []).map(it => it.url || (it.b64_json ? `data:image/png;base64,${it.b64_json}` : null)).filter(Boolean);
+    const images = (data?.data || [])
+      .map(it => it.url || (it.b64_json ? `data:image/png;base64,${it.b64_json}` : null))
+      .filter(Boolean);
+
     return res.status(200).json({ images });
   } catch (e) {
     return res.status(500).json({ error: String(e?.message || e) });
