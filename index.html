@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>好きなイラストを作ろう</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; margin: 20px; background:#fafafa; color:#222; }
-    h1 { font-size: 22px; margin-bottom: 16px; }
+    body { font-family: system-ui, sans-serif; margin: 0; background:#fafafa; color:#222; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; } /* PCは幅800px以内、中央寄せ */
+    h1 { font-size: 22px; margin-bottom: 16px; text-align: center; }
     .mode-buttons { display:flex; gap:12px; margin-bottom:20px; }
     .mode-buttons button {
       flex:1; padding:12px; font-size:16px; border-radius:8px;
@@ -15,223 +16,118 @@
     .mode-buttons button.active { background:#111; color:#fff; }
     .card { background:#fff; border:1px solid #ccc; border-radius:8px; padding:16px; margin-bottom:16px; }
     label { font-weight:600; display:block; margin:8px 0; }
-    textarea, select, input[type="file"] { width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+    textarea, select, input[type="file"] { width:100%; padding:8px; border:1px solid #ccc; border-radius:6px; }
     .actions { display:flex; gap:12px; margin-top:16px; }
     .actions button { flex:1; padding:12px; font-size:16px; border-radius:8px; cursor:pointer; border:none; }
     .btn-main { background:#111; color:#fff; }
     .btn-sub { background:#eee; }
-    .muted { color:#666; font-size:13px; margin-top:8px; }
-    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-    .grid img { width:100%; height:auto; border-radius:8px; background:#fff; }
-    .small { font-size:12px; }
+    .muted { color:#666; font-size:13px; margin-top:8px; text-align:center; }
   </style>
 </head>
 <body>
-  <h1>🎨 好きなイラストを作ろう</h1>
+  <div class="container">
+    <h1>🎨 好きなイラストを作ろう</h1>
 
-  <!-- 3つのモードボタン -->
-  <div class="mode-buttons">
-    <button id="btnFree">① 自由に作る（写真なし）</button>
-    <button id="btnImg2Img">② 写真からキャラ化</button>
-    <button id="btnInterrogate">③ 写真からタグ抽出</button>
-  </div>
-
-  <!-- 写真を選ぶ -->
-  <div id="imageBlock" class="card" style="display:none;">
-    <label>写真を選んでください</label>
-    <input type="file" id="fileInput" accept="image/*" />
-    <p id="fileInfo" class="muted"></p>
-  </div>
-
-  <!-- プリセット（作風） -->
-  <div id="presetBlock" class="card" style="display:none;">
-    <label>作風プリセット（えらばなくてもOK）</label>
-    <select id="preset">
-      <option value="">選ばない（自由に入力）</option>
-      <option value="chibi">① かわいい・ちびキャラ風</option>
-      <option value="mature">② 大人っぽいアニメ風</option>
-      <option value="street">③ カジュアル・ストリート風</option>
-    </select>
-  </div>
-
-  <!-- 自由テキスト -->
-  <div id="promptBlock" class="card">
-    <label id="promptLabel">好きな指示を書いてください（例：笑顔でピースサイン、白背景など）</label>
-    <textarea id="prompt" rows="4" placeholder="ここに自由に書いてOK。空でも動きます。"></textarea>
-  </div>
-
-  <!-- 補助オプション（共通） -->
-  <div id="optionsBlock" class="card">
-    <label><input type="checkbox" id="bgTransparent"> 背景を透過する（PNG）</label>
-    <label>背景を変える：</label>
-    <select id="bgPreset">
-      <option value="">（変更しない）</option>
-      <option value="white background">白背景</option>
-      <option value="simple pastel background">やわらかいパステル背景</option>
-      <option value="street background">ストリート風背景</option>
-    </select>
-    <label><input type="checkbox" id="brightnessUp"> 明るさを少し上げる</label>
-    <label><input type="checkbox" id="moodBoost"> 雰囲気をちょっとUP</label>
-    <div class="small muted">サイズは 1024×1024 固定（OpenAIの仕様に合わせています）</div>
-  </div>
-
-  <!-- 実行ボタン -->
-  <div id="actionsBlock" class="card">
-    <div class="actions">
-      <button class="btn-main" id="btnRun">生成する</button>
-      <button class="btn-sub" id="btnRunInterrogate" style="display:none;">写真からタグ抽出</button>
+    <!-- 3つのモードを選ぶボタン -->
+    <div class="mode-buttons">
+      <button id="btnFree">① 自由に作る</button>
+      <button id="btnImg2Img">② 写真からキャラ化</button>
+      <button id="btnInterrogate">③ 写真からタグ抽出</button>
     </div>
-    <p class="muted">①自由に作る → 写真不要 ／ ②キャラ化 → 写真が必要 ／ ③タグ抽出 → 写真が必要</p>
-    <p id="status" class="muted"></p>
+
+    <!-- 写真を選ぶ欄 -->
+    <div id="imageBlock" class="card" style="display:none;">
+      <label>写真を選んでください</label>
+      <input type="file" id="fileInput" accept="image/*" />
+    </div>
+
+    <!-- プリセット -->
+    <div id="presetBlock" class="card" style="display:none;">
+      <label>作風プリセット（任意）</label>
+      <select id="preset">
+        <option value="">選ばない（自由に入力）</option>
+        <option value="chibi">① かわいい・ちびキャラ風</option>
+        <option value="mature">② 大人っぽいアニメ風</option>
+        <option value="street">③ カジュアル・ストリート風</option>
+      </select>
+    </div>
+
+    <!-- 自由テキスト -->
+    <div id="promptBlock" class="card">
+      <label id="promptLabel">好きな指示を入力してください</label>
+      <textarea id="prompt" rows="4" placeholder="例：笑顔でピースサイン、白背景など"></textarea>
+    </div>
+
+    <!-- 補助オプション -->
+    <div id="optionsBlock" class="card">
+      <label><input type="checkbox" id="bgTransparent"> 背景を透過する</label>
+      <label>背景を変更：</label>
+      <select id="bgPreset">
+        <option value="">（変更しない）</option>
+        <option value="white background">白背景</option>
+        <option value="simple pastel background">やわらかいパステル背景</option>
+        <option value="street background">ストリート風背景</option>
+      </select>
+      <label><input type="checkbox" id="brightnessUp"> 明るさを少し上げる</label>
+      <label><input type="checkbox" id="moodBoost"> 雰囲気をちょっとUP</label>
+    </div>
+
+    <!-- 実行ボタン -->
+    <div id="actionsBlock" class="card">
+      <div class="actions">
+        <button class="btn-main" id="btnRun">生成する（3枚固定）</button>
+        <button class="btn-sub" id="btnRunInterrogate" style="display:none;">写真からタグ抽出</button>
+      </div>
+      <p class="muted">※ ①自由に作る → 写真不要<br>※ ②キャラ化 → 写真必須<br>※ ③タグ抽出 → 写真必須</p>
+      <p id="status" class="muted"></p>
+    </div>
   </div>
 
-  <!-- 出力 -->
-  <div class="card">
-    <div id="out" class="grid"></div>
-  </div>
+  <script>
+    const btnFree = document.getElementById("btnFree");
+    const btnImg2Img = document.getElementById("btnImg2Img");
+    const btnInterrogate = document.getElementById("btnInterrogate");
 
-<script>
-  // ========= ユーティリティ =========
-  const $ = (s)=>document.querySelector(s);
-  function show(el, on){ el.style.display = on ? "" : "none"; }
+    const imageBlock = document.getElementById("imageBlock");
+    const presetBlock = document.getElementById("presetBlock");
+    const promptLabel = document.getElementById("promptLabel");
+    const runInterrogateBtn = document.getElementById("btnRunInterrogate");
 
-  // ========= モード切替 =========
-  const btnFree = $("#btnFree");
-  const btnImg2Img = $("#btnImg2Img");
-  const btnInterrogate = $("#btnInterrogate");
-  const imageBlock = $("#imageBlock");
-  const presetBlock = $("#presetBlock");
-  const promptLabel = $("#promptLabel");
-  const runInterrogateBtn = $("#btnRunInterrogate");
+    let currentMode = "free";
 
-  let currentMode = "free";     // free | img2img | interrogate
-  let imageDataUrl = null;      // ファイルをDataURLで保持
+    function setMode(mode) {
+      currentMode = mode;
+      btnFree.classList.remove("active");
+      btnImg2Img.classList.remove("active");
+      btnInterrogate.classList.remove("active");
 
-  function setMode(mode){
-    currentMode = mode;
-    [btnFree, btnImg2Img, btnInterrogate].forEach(b=>b.classList.remove("active"));
-
-    if(mode==="free"){
-      btnFree.classList.add("active");
-      show(imageBlock, false);
-      show(presetBlock, false);
-      show(runInterrogateBtn, false);
-      promptLabel.textContent = "好きな指示を書いてください（例：笑顔でピースサイン、白背景など）";
-    }else if(mode==="img2img"){
-      btnImg2Img.classList.add("active");
-      show(imageBlock, true);
-      show(presetBlock, true);
-      show(runInterrogateBtn, false);
-      promptLabel.textContent = "追加したい指示があれば書いてください（任意）";
-    }else{
-      btnInterrogate.classList.add("active");
-      show(imageBlock, true);
-      show(presetBlock, false);
-      show(runInterrogateBtn, true);
-      promptLabel.textContent = "抽出されたタグに追加したい指示があれば書いてください（任意）";
-    }
-  }
-  btnFree.addEventListener("click", ()=>setMode("free"));
-  btnImg2Img.addEventListener("click", ()=>setMode("img2img"));
-  btnInterrogate.addEventListener("click", ()=>setMode("interrogate"));
-  setMode("img2img"); // ←最初に「写真からキャラ化」を選択状態に（好みでfreeに変えてOK）
-
-  // ========= ファイル選択（ここが“アップできない”の原因だった） =========
-  $("#fileInput").addEventListener("change", (e)=>{
-    const f = e.target.files && e.target.files[0];
-    if(!f){ imageDataUrl = null; $("#fileInfo").textContent = ""; return; }
-    const reader = new FileReader();
-    reader.onload = ()=>{
-      imageDataUrl = reader.result; // data:image/...;base64,xxxx
-      $("#fileInfo").textContent = `${f.name}（${Math.round(f.size/1024)} KB）を読み込みました`;
-    };
-    reader.readAsDataURL(f);
-  });
-
-  // ========= 生成（POSTで /api/generate に送る） =========
-  $("#btnRun").addEventListener("click", async ()=>{
-    const status = $("#status");
-    const out = $("#out");
-    status.textContent = "処理中…";
-    out.innerHTML = "";
-
-    // ②と③は写真必須
-    const needPhoto = (currentMode === "img2img");
-    if(needPhoto && !imageDataUrl){ status.textContent = "写真を選んでください。"; return; }
-
-    const payload = {
-      prompt: $("#prompt").value.trim(),
-      imageDataUrl: (currentMode === "img2img") ? imageDataUrl : undefined,
-      options: {
-        preset: $("#preset").value || undefined,
-        bgTransparent: $("#bgTransparent").checked || undefined,
-        bgPreset: $("#bgPreset").value || undefined,
-        brightnessUp: $("#brightnessUp").checked || undefined,
-        moodBoost: $("#moodBoost").checked || undefined,
-        // size/qualityはサーバ側でデフォルト（1024/low）
-        n: 6 // 6枚出す（好みで変えてOK）
+      if (mode === "free") {
+        btnFree.classList.add("active");
+        imageBlock.style.display = "none";
+        presetBlock.style.display = "none";
+        runInterrogateBtn.style.display = "none";
+        promptLabel.textContent = "好きなプロンプトを入れてください（自由入力）";
+      } else if (mode === "img2img") {
+        btnImg2Img.classList.add("active");
+        imageBlock.style.display = "";
+        presetBlock.style.display = "";
+        runInterrogateBtn.style.display = "none";
+        promptLabel.textContent = "追加したい指示があれば入力（任意）";
+      } else if (mode === "interrogate") {
+        btnInterrogate.classList.add("active");
+        imageBlock.style.display = "";
+        presetBlock.style.display = "none";
+        runInterrogateBtn.style.display = "";
+        promptLabel.textContent = "抽出したタグに追加したい指示を入力（任意）";
       }
-    };
-
-    try{
-      const r = await fetch("/api/generate", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(payload)
-      });
-
-      // JSON以外（=HTMLエラー）を拾って分かりやすく表示
-      const ct = r.headers.get("content-type") || "";
-      if(!ct.includes("application/json")){
-        const text = await r.text();
-        throw new Error(`サーバーから正しい返事が来ていません（${r.status}）。\n${text.slice(0,100)}`);
-      }
-
-      const data = await r.json();
-      if(!r.ok) throw new Error(data?.error || ("HTTP "+r.status));
-
-      const images = data.images || [];
-      if(!images.length) throw new Error("画像が返ってきませんでした。");
-
-      // グリッド表示
-      $("#out").innerHTML = images.map(u=>`<img src="${u}" alt="result">`).join("");
-      status.textContent = `完了（${images.length}枚）`;
-    }catch(e){
-      status.textContent = "失敗：" + (e.message || e);
     }
-  });
 
-  // ========= タグ抽出（POSTで /api/interrogate に送る） =========
-  $("#btnRunInterrogate").addEventListener("click", async ()=>{
-    const status = $("#status");
-    status.textContent = "写真を解析中…";
+    btnFree.addEventListener("click", () => setMode("free"));
+    btnImg2Img.addEventListener("click", () => setMode("img2img"));
+    btnInterrogate.addEventListener("click", () => setMode("interrogate"));
 
-    if(!imageDataUrl){ status.textContent = "写真を選んでください。"; return; }
-
-    try{
-      const r = await fetch("/api/interrogate", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ imageDataUrl })
-      });
-
-      const ct = r.headers.get("content-type") || "";
-      if(!ct.includes("application/json")){
-        const text = await r.text();
-        throw new Error(`APIが見つかりません（${r.status}）。/api/interrogate の配置を確認してください。\n${text.slice(0,100)}`);
-      }
-
-      const data = await r.json();
-      if(!r.ok) throw new Error(data?.error || ("HTTP "+r.status));
-
-      const tags = data.tags || "";
-      const t = $("#prompt");
-      t.value = (t.value ? t.value + "\n" : "") + tags;
-      status.textContent = "タグをテキスト欄に追加しました。";
-    }catch(e){
-      status.textContent = "解析失敗：" + (e.message || e);
-    }
-  });
-</script>
+    // 初期は「自由に作る」
+    setMode("free");
+  </script>
 </body>
 </html>
