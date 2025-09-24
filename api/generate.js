@@ -1,4 +1,4 @@
-// /api/generate.js — FINAL
+// /api/generate.js
 export const config = { api: { bodyParser: true } };
 
 function cleanseKey(raw) {
@@ -8,161 +8,107 @@ function cleanseKey(raw) {
     .trim();
 }
 
-// dataURL -> Blob
+// 3スタイルの「そっくり優先」ベース文 + ネガティブ
+const STYLE_PROMPTS = {
+  chibi: [
+    "A 2D digital illustration in cute chibi style.",
+    "Large heads, small bodies, rounded features, friendly cartoon look.",
+    "Anime-style bold clean outlines, flat bright coloring, cheerful vibe.",
+    "Simple white background.",
+    "STRICT LIKENESS: faithfully reflect the photo’s hairstyle, hair color, eyes, eyebrows, nose, mouth shape, skin tone, clothing and general vibe.",
+    "Do not change age, gender or ethnicity. Keep the person recognizable (>95%)."
+  ].join("\n"),
+  mature: [
+    "A 2D anime-style illustration with semi-realistic look and natural proportions.",
+    "Soft shading, clean neat coloring, calm mature atmosphere.",
+    "White background.",
+    "STRICT LIKENESS: preserve real facial geometry and hairstyle; keep clothing and accessories consistent with the photo; keep age and gender unchanged; recognizable (>95%)."
+  ].join("\n"),
+  street: [
+    "A 2D anime/manga style illustration with casual pop street vibe.",
+    "Standard proportions (not chibi). Bold clean outlines, vivid high-contrast colors.",
+    "White background.",
+    "If suitable, casual items like cap/T-shirt are OK; keep cheerful expressions.",
+    "STRICT LIKENESS: keep the same face, hair, skin tone and outfit mood from the photo; do not turn into a different person; recognizable (>95%)."
+  ].join("\n"),
+};
+
+// 画づまり防止のネガティブ
+const NEGATIVE_PROMPT = [
+  "blurry, out of focus, low resolution, jpeg artifacts",
+  "deformed, disfigured, extra fingers, missing limbs, bad anatomy, asymmetry",
+  "distorted face, off-model, mutated, glitched, watermark, text, logo, nsfw",
+  "cropped head, cut-off hands, double head, double face"
+].join(", ");
+
+function buildPrompt(style, extra="", opt={}){
+  const base = STYLE_PROMPTS[style] || STYLE_PROMPTS.chibi;
+  const assists = [];
+  if (opt.brightnessUp) assists.push("slightly brighten the overall exposure.");
+  if (opt.moodBoost) assists.push("enhance mood by about 20%, keep it natural.");
+  return [
+    base,
+    extra ? `Extra instruction: ${extra}` : "",
+    assists.join(" ")
+  ].filter(Boolean).join("\n");
+}
+
+// dataURL → Blob
 function dataUrlToBlob(dataUrl) {
   const m = /^data:(.*?);base64,(.*)$/i.exec(dataUrl || "");
   if (!m) throw new Error("invalid data URL");
-  const mime = m[1] || "image/png";
+  const mime = m[1] || "image/jpeg";
   const buf = Buffer.from(m[2], "base64");
   return new Blob([buf], { type: mime });
 }
 
-// 作風プリセット
-const PRESETS = {
-  chibi: `
-[STYLE]
-- Cute chibi style (大きな頭・小さな体・親しみやすい表情)
-- Bold & clean outlines, flat bright colors, limited palette
-- Simple white background or very minimal backdrop
+export default async function handler(req, res){
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "POST のみ" });
 
-[CONTENT]
-- Use the uploaded photo as the ground truth
-- Reflect hairstyle, clothing, expression, and overall vibe accurately
-- Keep a cheerful, friendly atmosphere
-
-[RENDER RULES]
-- Clean line art, no messy lines
-- Clear silhouettes
-`,
-  mature: `
-[STYLE]
-- Semi-realistic anime style, natural proportions, mature & clean mood
-- Soft shading, neat & simple coloring, crisp line art
-- White background or minimal backdrop
-
-[CONTENT]
-- Use the uploaded photo as the ground truth
-- Accurately reflect hairstyle, clothing, expression, and vibe
-- Calm, warm impression
-
-[RENDER RULES]
-- Clean anatomy, natural facial features
-- Avoid excessive stylization that changes identity
-`,
-  street: `
-[STYLE]
-- Casual anime/manga with a slight hip-hop/street vibe
-- Bold sharp outlines, vivid high-contrast colors
-- White or minimal background, energetic mood
-
-[CONTENT]
-- Use the uploaded photo as the ground truth
-- Reflect hairstyle, clothing, expression, and vibe accurately
-- Standard proportions (not chibi)
-
-[RENDER RULES]
-- Strong contrast but clean
-- Fun, lively impression without losing likeness
-`,
-};
-const PRESET_ALIASES = { "1":"chibi","2":"mature","3":"street" };
-
-// ネガティブ（必須）
-const NEGATIVE_BLOCK = `
-[AVOID / NEGATIVE]
-- generic cartoon face, averaged features, off-model
-- wrong face, inaccurate likeness, identity change
-- wrong hair color/length, wrong clothing, age/gender change
-- distorted anatomy, extra/missing fingers/limbs, messy lines
-- blurry, low-quality, JPEG artifacts, background clutter
-- over-detailed 3D realism; keep 2D clean anime aesthetics
-`;
-
-// img2img時の「そっくり優先」
-const LIKENESS_STRICT = `
-[STRICT LIKENESS]
-- Preserve the subject's identity and likeness (>95%)
-- Follow the photo closely for facial features, hairstyle, clothing
-- Do NOT change face shape, age, gender, skin tone, or hair length
-- Do NOT alter eye/eyebrow/nose/mouth shapes
-- No gender-swap, no age-shift, no turning into a different person
-`;
-
-function buildAux(options = {}) {
-  const aux = [];
-  if (options.bgTransparent) aux.push("background: transparent (PNG alpha)");
-  if (options.bgPreset) aux.push(`background: ${options.bgPreset}`);
-  if (options.brightnessUp) aux.push("slightly brighten the overall exposure");
-  if (options.moodBoost) aux.push("enhance mood by ~20% but keep natural");
-  return aux.join("\n");
-}
-
-function buildPrompt({ userPrompt = "", preset = "", isEdit = false, options = {} }) {
-  const lines = [];
-  const key = PRESET_ALIASES[preset?.toString()] || preset?.toString();
-  if (key && PRESETS[key]) lines.push(PRESETS[key].trim());
-  if (userPrompt) lines.push(String(userPrompt).trim());
-  const aux = buildAux(options); if (aux) lines.push(aux);
-  if (isEdit) lines.push(LIKENESS_STRICT.trim());       // 画像あり＝そっくり優先
-  lines.push(NEGATIVE_BLOCK.trim());                    // ネガティブは必須
-  return lines.join("\n\n");
-}
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "POST のみ" });
-
-  try {
-    const { prompt: userPrompt = "", options = {}, imageDataUrl, preset } = req.body || {};
-    if (!preset && !userPrompt)
-      return res.status(400).json({ error: "preset か prompt のどちらかを入れてください" });
+  try{
+    const { imageDataUrl, options } = req.body || {};
+    if (!imageDataUrl) return res.status(400).json({ error: "imageDataUrl がありません（写真1枚必須）" });
 
     const apiKey = cleanseKey(process.env.OPENAI_API_KEY);
     if (!apiKey || !apiKey.startsWith("sk-"))
       return res.status(500).json({ error: "OPENAI_API_KEY が未設定または不正です" });
 
-    const isEdit = !!imageDataUrl;
-    const finalPrompt = buildPrompt({ userPrompt, preset, isEdit, options });
+    const style = (options?.style || "chibi").toLowerCase();
+    const extra = (options?.extra || "").trim();
+    const finalPrompt = [
+      buildPrompt(style, extra, options||{}),
+      `Negative prompt: ${NEGATIVE_PROMPT}`
+    ].join("\n\n");
 
-    // 安定の 1枚固定
-    const n = 1, size = "1024x1024", quality = "low";
+    // 1枚ずつ・1024固定・quality:low でコスト抑制＆安定
+    const fileBlob = dataUrlToBlob(imageDataUrl);
+    const form = new FormData();
+    form.append("model", "gpt-image-1");
+    form.append("prompt", finalPrompt);
+    form.append("image[]", fileBlob, "image.jpg");
+    form.append("size", "1024x1024");
+    form.append("quality", "low");
+    form.append("n", "1");
 
-    if (isEdit) {
-      const form = new FormData();
-      form.append("model", "gpt-image-1");
-      form.append("prompt", finalPrompt);
-      form.append("image[]", dataUrlToBlob(imageDataUrl), "image.jpg");
-      form.append("size", size);
-      form.append("quality", quality);
-      form.append("n", String(n));
+    const r = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
 
-      const r = await fetch("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: form,
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "OpenAI 編集APIエラー" });
-
-      const item = data?.data?.[0];
-      const image = item?.url || (item?.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
-      if (!image) return res.status(500).json({ error: "画像データがありません" });
-      return res.status(200).json({ image });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      const msg = data?.error?.message || "OpenAI 画像APIエラー";
+      return res.status(r.status).json({ error: msg });
     }
 
-    // 新規生成
-    const r = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-image-1", prompt: finalPrompt, size, quality, n }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) return res.status(r.status).json({ error: data?.error?.message || "OpenAI 生成APIエラー" });
+    const item = data?.data?.[0] || {};
+    const image = item.url || (item.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
+    if(!image) return res.status(500).json({ error: "画像データがありません" });
 
-    const item = data?.data?.[0];
-    const image = item?.url || (item?.b64_json ? `data:image/png;base64,${item.b64_json}` : null);
-    if (!image) return res.status(500).json({ error: "画像データがありません" });
     return res.status(200).json({ image });
-  } catch (err) {
+  }catch(err){
     return res.status(500).json({ error: String(err?.message || err) });
   }
 }
