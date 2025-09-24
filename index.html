@@ -1,197 +1,173 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>好きなイラストを作ろう</title>
-<style>
-  :root{ --bg:#fafafa; --card:#fff; --text:#222; --muted:#666; --border:#e5e5e5; }
-  body{ margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,"Noto Sans JP",sans-serif; }
-  .wrap{ max-width:980px; margin:36px auto; padding:0 16px; }
-  h1{ font-size:24px; margin:0 0 16px; display:flex; gap:.5rem; align-items:center; }
-  .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin:16px 0; }
-  label{ font-weight:600; display:block; margin:8px 0 6px; }
-  input[type="text"], textarea, select{ width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; }
-  textarea{ min-height:120px; font-family:inherit; }
-  .row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  .muted{ color:var(--muted); font-size:12px; line-height:1.5; }
-  .actions{ display:flex; gap:8px; align-items:center; margin-top:16px; }
-  button{ cursor:pointer; padding:12px 16px; border:1px solid var(--border); background:#111; color:#fff; border-radius:10px; font-weight:600; font-size:14px; width:100%; }
-  button[disabled]{ opacity:.6; cursor:wait; }
-  .out{ display:grid; place-items:center; min-height:280px; border:1px dashed var(--border); border-radius:12px; background:#fff; }
-  .out img{ max-width:100%; height:auto; border-radius:12px; }
-  .small{ font-size:12px; }
-  .checks label{ font-weight:400; display:flex; align-items:center; gap:.5rem; margin:6px 0; }
-  .pill{ display:inline-block; padding:4px 8px; background:#f4f4f4; border-radius:999px; font-size:12px; }
-  @media (max-width:720px){ .row{ grid-template-columns:1fr; } }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>好きなイラストを作ろう</title>
+  <style>
+    :root{--bg:#fafafa;--card:#fff;--text:#222;--muted:#666;--border:#e5e5e5}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,"Noto Sans JP",sans-serif}
+    .wrap{max-width:980px;margin:32px auto;padding:0 16px}
+    h1{display:flex;gap:.6rem;align-items:center;font-size:24px;margin:0 0 16px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin:16px 0}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    label{font-weight:600;display:block;margin:8px 0 6px}
+    input[type="text"],select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px}
+    textarea{min-height:120px}
+    button{cursor:pointer;padding:12px 16px;border-radius:10px;border:1px solid #111;background:#111;color:#fff;font-size:15px}
+    button[disabled]{opacity:.45;cursor:wait}
+    .actions{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+    .muted{color:var(--muted);font-size:12.5px;line-height:1.6}
+    .out{display:grid;place-items:center;min-height:260px;border:1px dashed var(--border);border-radius:12px;background:#fff}
+    .grid{display:grid;grid-template-columns:repeat(1,1fr);gap:14px}
+    .img{max-width:100%;height:auto;border-radius:12px;display:block}
+    .small{font-size:12px}
+    .ok{color:#0a7a20}
+    .err{color:#b10000}
+    .help{font-size:13px;color:#555}
+    @media(min-width:860px){.grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🎨 好きなイラストを作ろう</h1>
+  <div class="wrap">
+    <h1>🎨 好きなイラストを作ろう</h1>
 
-  <div class="card">
-    <div class="row">
-      <div>
-        <label>写真を選んでください（任意：選ばない＝テキストから）</label>
-        <input id="file" type="file" accept="image/*" />
-        <div id="fileInfo" class="muted" style="margin-top:6px;"></div>
-      </div>
-      <div>
-        <label>作風プリセット</label>
-        <select id="preset">
-          <option value="1">① かわいい・ちびキャラ風</option>
-          <option value="2">② 大人っぽいアニメ調（スッキリ）</option>
-          <option value="3">③ カジュアル／ポップ・ストリート風</option>
-        </select>
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>作風プリセット（必須）</label>
+          <select id="style">
+            <option value="chibi">① かわいい・ちびキャラ風</option>
+            <option value="mature">② 大人っぽいアニメ調</option>
+            <option value="street">③ カジュアル／ポップ・ストリート風</option>
+          </select>
+
+          <label class="mt">（任意）自由追記テキスト</label>
+          <textarea id="extra" placeholder="例：笑顔でピースサイン、上半身、白背景 など"></textarea>
+
+          <div class="actions">
+            <button id="gen">生成する（1枚固定）</button>
+            <span id="stat" class="help"></span>
+          </div>
+
+          <p class="muted">
+            写真は<strong>1枚だけ選択</strong>してください（そっくり優先）。<br>
+            アップした写真は自動で <strong>最大辺 1024px / 400KB 目標</strong> に圧縮されます（413対策）。
+          </p>
+        </div>
+
+        <div>
+          <label>写真を選んでください（推奨：顔が大きく明るい1枚）</label>
+          <input type="file" id="file" accept="image/*" />
+          <p class="small muted">※「自由に作る（テキストのみ）」用途は未対応。必ず顔写真1枚を選んでください。</p>
+
+          <div class="card" style="margin:12px 0 0">
+            <label>補助チェック（任意）</label>
+            <div class="small">
+              <label><input type="checkbox" id="bright"> 明るさを少し上げる</label><br/>
+              <label><input type="checkbox" id="mood"> ちょっと雰囲気UP（+20%）</label>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <label style="margin-top:12px;">（任意）追加したい指示があれば入力</label>
-    <textarea id="prompt" placeholder="例：笑顔でピースサイン、上半身、白背景など"></textarea>
+    <div class="card">
+      <label>出力</label>
+      <div id="out" class="out small muted">ここに結果が表示されます</div>
+    </div>
 
-    <div class="row" style="margin-top:12px;">
-      <div class="card" style="margin:0;">
-        <div style="font-weight:600; margin-bottom:8px;">補助チェック</div>
-        <div class="checks">
-          <label><input id="bgTransparent" type="checkbox" /> 背景を透過する</label>
-          <label>背景を変更：
-            <select id="bgPreset">
-              <option value="">（変更しない＝白）</option>
-              <option value="solid white background">真っ白な背景</option>
-              <option value="simple pastel background">淡いパステルの簡素な背景</option>
-            </select>
-          </label>
-          <label><input id="brightnessUp" type="checkbox" /> 明るさを少し上げる</label>
-          <label><input id="moodBoost" type="checkbox" /> ちょっと雰囲気UP（+20%）</label>
-        </div>
-        <div class="muted">※ 生成は <span class="pill">1枚固定</span> ／ 高精細写真は自動で圧縮して送信します</div>
-      </div>
-
-      <div class="card" style="margin:0;">
-        <div class="actions">
-          <button id="genBtn">生成する（1枚固定）</button>
-        </div>
-        <div id="status" class="muted" style="margin-top:8px;"></div>
+    <div class="card">
+      <div class="muted">
+        <strong>使い方の超要約</strong>：①スタイル選択 → ②写真1枚選択 → ③必要なら追記 → ④「生成する」。<br>
+        すべて <strong>1枚生成・そっくり優先・ネガティブプロンプト必須</strong> で動作します。
       </div>
     </div>
   </div>
-
-  <div class="card">
-    <div class="out" id="out"><span class="muted">ここに結果が表示されます</span></div>
-  </div>
-
-  <div class="muted small">
-    ※ ①はちびキャラ、②は大人アニメ、③はポップ・ストリート。<br/>
-    ※ 「本人そっくり」を優先、白背景ベース、NG（ネガティブ）も自動で付与します。<br/>
-  </div>
-</div>
 
 <script>
-/* ==========================================================
-   画像は必ず送信前に圧縮（長辺 1024px / JPEG 品質 0.85）
-   これで 413(Entity Too Large) を防ぎ、転送・コストを最適化
-   ========================================================== */
-async function resizeToDataURL(file, maxSide = 1024, quality = 0.85) {
-  const readAsImage = (f) => new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => {
-      const img = new Image();
-      img.onload = () => resolve({ img, src: fr.result });
-      img.onerror = reject;
-      img.src = fr.result;
-    };
-    fr.onerror = reject;
-    fr.readAsDataURL(f);
+const el = (id)=>document.getElementById(id);
+const out = el('out');
+const stat = el('stat');
+
+function msg(text, cls='help'){ stat.className=cls; stat.textContent=text; }
+function showError(e){ out.innerHTML = '<span class="err">❌ '+ e +'</span>'; }
+
+/* 画像を “最大辺1024px / ~400KB” までクライアント側で圧縮 */
+async function compressImage(file, maxSide=1024, targetKb=400){
+  const img = await new Promise((res,rej)=>{
+    const i = new Image();
+    i.onload=()=>res(i);
+    i.onerror=rej;
+    i.src = URL.createObjectURL(file);
   });
 
-  // HEIC等はブラウザによって読み込み不可→そのまま送る（サーバで弾かれても原因が分かる）
-  try {
-    const { img } = await readAsImage(file);
-    const w = img.width, h = img.height;
-    const scale = Math.min(1, maxSide / Math.max(w, h));
-    const dstW = Math.max(1, Math.round(w * scale));
-    const dstH = Math.max(1, Math.round(h * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = dstW; canvas.height = dstH;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0, dstW, dstH);
-    // PNGは重くなるので既定はJPEG。背景透過チェック時のみPNG化。
-    const bgTransparent = document.getElementById('bgTransparent')?.checked;
-    return bgTransparent
-      ? canvas.toDataURL("image/png")
-      : canvas.toDataURL("image/jpeg", quality);
-  } catch (e) {
-    // フォールバック：そのままdataURL化（最後の砦）
-    return await new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(file);
-    });
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  // 品質を下げながら 400KB を目標に調整
+  let q = 0.92, dataUrl;
+  for(let t=0;t<8;t++){
+    dataUrl = canvas.toDataURL('image/jpeg', q);
+    const kb = Math.ceil((dataUrl.length*3/4)/1024);
+    if(kb<=targetKb) break;
+    q -= 0.12; // 徐々に縮める
+    if(q<0.45) break;
   }
+  return dataUrl;
 }
 
-// ファイル選択情報の表示
-const fileEl = document.getElementById('file');
-const fileInfoEl = document.getElementById('fileInfo');
-if (fileEl) {
-  fileEl.addEventListener('change', () => {
-    const f = fileEl.files && fileEl.files[0];
-    if (!f) { fileInfoEl.textContent = ''; return; }
-    fileInfoEl.textContent = `選択：${f.name}（${(f.size/1024/1024).toFixed(2)} MB） → 送信前に自動圧縮します`;
-  });
+function buildOptions(){
+  return {
+    style: el('style').value,
+    extra: el('extra').value || "",
+    brightnessUp: el('bright').checked,
+    moodBoost: el('mood').checked
+  };
 }
 
-// 生成処理
-const btn = document.getElementById('genBtn');
-btn.addEventListener('click', async () => {
-  const status = document.getElementById('status');
-  const out = document.getElementById('out');
-  try {
-    btn.disabled = true;
-    btn.textContent = '生成中…（1枚固定）';
-    status.textContent = '画像と指示を送信しています…';
+async function generate(){
+  try{
+    const f = el('file').files[0];
+    if(!f){ showError('写真を1枚選んでください'); return; }
 
-    // UI 値取得
-    const preset  = document.getElementById('preset').value;   // 1 / 2 / 3
-    const prompt  = document.getElementById('prompt').value || '';
-    const bgTransparent = document.getElementById('bgTransparent').checked;
-    const bgPreset = document.getElementById('bgPreset').value;
-    const brightnessUp = document.getElementById('brightnessUp').checked;
-    const moodBoost = document.getElementById('moodBoost').checked;
+    msg('写真を圧縮中…');
+    const imageDataUrl = await compressImage(f);
 
-    // 圧縮 dataURL 作成（未選択なら null）
-    const f = fileEl.files && fileEl.files[0];
-    let imageDataUrl = null;
-    if (f) {
-      imageDataUrl = await resizeToDataURL(f, 1024, 0.85);
-    }
-
-    const body = {
-      prompt,
-      preset,
-      imageDataUrl, // nullならtxt2img、ありならimg2img（“そっくり優先” 自動付与）
-      options: { bgTransparent, bgPreset, brightnessUp, moodBoost }
-    };
+    msg('生成中…（30～60秒のことがあります）', 'help');
 
     const r = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        imageDataUrl,
+        options: buildOptions()
+      })
     });
 
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j?.error || 'サーバエラー');
 
-    out.innerHTML = `<img alt="result" src="${data.image}">`;
-    status.textContent = '完了（1枚）';
-  } catch (e) {
-    status.textContent = `失敗：${e.message}`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '生成する（1枚固定）';
+    out.innerHTML = '';
+    const img = new Image();
+    img.src = j.image;
+    img.className = 'img';
+    out.appendChild(img);
+    msg('完了（1枚生成）', 'ok');
+  }catch(e){
+    showError(String(e.message||e));
+    msg('');
   }
+}
+
+el('gen').addEventListener('click', ()=>{
+  out.innerHTML = '<span class="help">…生成を開始しました</span>';
+  el('gen').disabled = true;
+  generate().finally(()=> el('gen').disabled = false);
 });
 </script>
 </body>
